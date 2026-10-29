@@ -12,7 +12,7 @@ function fixture(){
  Object.defineProperty(w.document,'fullscreenElement',{get:()=>fsElement});
  w.document.exitFullscreen=()=>{fsElement=null;w.document.dispatchEvent(new w.Event('fullscreenchange'));return Promise.resolve();};
  w.browser={runtime:{connectNative(){return {postMessage(m){messages.push(m);},onMessage:{addListener(f){command=f;}},onDisconnect:{addListener(f){disconnected=f;}},disconnect(){disconnected?.();}};}}};
- for(const f of ['background-play.js','gestures.js','links.js','content.js'])w.eval(fs.readFileSync(path.join(dir,f),'utf8'));
+ for(const f of ['background-play.js','gestures.js','viewport-playback.js','links.js','content.js'])w.eval(fs.readFileSync(path.join(dir,f),'utf8'));
  command({command:'presentation',mode:'inline',revision});
  return {w,v,player,messages,send:m=>command(m.command==='presentation'?{revision:++revision,...m}:m),advance:n=>clock+=n,delayExit(){w.document.exitFullscreen=()=>new Promise(resolve=>{completeExit=()=>{fsElement=null;w.document.dispatchEvent(new w.Event('fullscreenchange'));resolve();};});},finishExit:()=>completeExit(),hide:()=>visible=false,nativeFull:()=>fsElement=player,plays:()=>plays,close(){w.dispatchEvent(new w.PageTransitionEvent('pagehide'));dom.window.close();}};
 }
@@ -123,5 +123,48 @@ test('native screenshot interruption cancels a pending gesture without a mode ch
   touch(f,'touchstart',60,220);f.advance(100);f.send({command:'cancelGesture'});f.advance(100);touch(f,'touchend',60,70);
   assert.equal(f.messages.filter(m=>m.type==='presentationRequest').length,0);
   assert.equal(f.player.hasAttribute('data-flowview-full'),false);
+ }finally{f.close();}
+});
+test('native drag previews smoothly without requesting portrait and resets after cancellation',()=>{
+ const f=fixture();try{
+  f.send({command:'settings',gestures:true,nativeFullscreenSwipe:true});f.send({command:'presentation',mode:'full',revision:20});
+  const video=f.v;f.send({command:'fullscreenDrag',revision:20,progress:.5});
+  assert.equal(f.player.hasAttribute('data-flowview-drag'),true);
+  assert.equal(f.w.document.documentElement.style.getPropertyValue('--flowview-drag-scale'),'0.92');
+  assert.equal(f.messages.filter(m=>m.type==='presentationRequest').length,0);
+  f.send({command:'fullscreenDrag',revision:20,progress:1});
+  assert.equal(f.w.document.documentElement.dataset.flowviewPresentation,'full');assert.equal(f.v,video);assert.equal(f.v.currentTime,53);
+  f.send({command:'cancelGesture'});assert.equal(f.player.hasAttribute('data-flowview-drag'),false);
+  assert.equal(f.player.getAttribute('style'),'position:relative');
+  f.send({command:'fullscreenDrag',revision:19,progress:1});assert.equal(f.player.hasAttribute('data-flowview-drag'),false);
+ }finally{f.close();}
+});
+test('native owns downward swipes including the notification edge while double taps still seek',()=>{
+ const f=fixture();try{
+  f.send({command:'settings',gestures:true,nativeFullscreenSwipe:true});f.send({command:'presentation',mode:'full'});
+  for(const y of [10,80]){touch(f,'touchstart',60,y);f.advance(200);touch(f,'touchmove',60,220);touch(f,'touchend',60,220);}
+  assert.equal(f.messages.filter(m=>m.type==='presentationRequest').length,0);
+  for(let i=0;i<2;i++){touch(f,'touchstart',60,100);f.advance(80);touch(f,'touchend',60,100);f.advance(80);}
+  assert.equal(f.v.currentTime,43);
+ }finally{f.close();}
+});
+test('short viewport fits the same watch player and removes compact styles on expansion or fullscreen',()=>{
+ const f=fixture();try{
+  Object.defineProperty(f.w,'innerHeight',{value:180,writable:true});f.w.dispatchEvent(new f.w.Event('resize'));
+  assert.equal(f.player.hasAttribute('data-flowview-compact-player'),true);
+  assert.equal(f.w.document.documentElement.style.getPropertyValue('--flowview-compact-height'),'172px');
+  assert.equal(f.v.currentTime,53);assert.equal(f.plays(),0);
+  f.send({command:'presentation',mode:'full'});assert.equal(f.player.hasAttribute('data-flowview-compact-player'),false);
+  f.send({command:'presentation',mode:'inline'});assert.equal(f.player.hasAttribute('data-flowview-compact-player'),true);
+  f.w.innerHeight=700;f.w.dispatchEvent(new f.w.Event('resize'));assert.equal(f.player.hasAttribute('data-flowview-compact-player'),false);
+  assert.equal(f.player.getAttribute('style'),'position:relative');
+ }finally{f.close();}
+});
+test('resize recovery is connected to page resize and native pause cancels it',async()=>{
+ const f=fixture();try{
+  f.w.dispatchEvent(new f.w.Event('resize'));f.v.pause();await new Promise(r=>setTimeout(r,160));
+  assert.equal(f.plays(),1);assert.equal(f.v.paused,false);
+  f.w.dispatchEvent(new f.w.Event('resize'));f.send({command:'pause'});await new Promise(r=>setTimeout(r,500));
+  assert.equal(f.v.paused,true);assert.equal(f.plays(),1);
  }finally{f.close();}
 });

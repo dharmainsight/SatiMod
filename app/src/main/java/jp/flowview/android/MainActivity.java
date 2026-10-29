@@ -84,7 +84,8 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private ProgressBar progress;
     private boolean fullscreen, canBack, canForward, foreground, playing;
     private final PresentationState viewing=new PresentationState();
-    private boolean consumingFullscreenSwipe;
+    private boolean consumingFullscreenSwipe,settlingFullscreenSwipe;
+    private long fullscreenSwipeGeneration;
     private final FullscreenSwipe fullscreenSwipe=new FullscreenSwipe();
     private String lastCopiedUrl="";
     private long lastCopyTime,pipTransitionGeneration;
@@ -255,13 +256,17 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
             if(!PlaybackService.send(obj))toast("動画ページの準備ができてから操作してください");
         }catch(Exception e){toast("操作を送れませんでした");}
     }
-    private void sendSettings(){if(PlaybackService.controllerConnected())send("settings","gestures",prefs.getBoolean("gestures",true));}
+    private void sendSettings(){
+        if(PlaybackService.controllerConnected())try{PlaybackService.send(new JSONObject().put("command","settings").put("gestures",prefs.getBoolean("gestures",true)).put("nativeFullscreenSwipe",true));}catch(Exception ignored){}
+    }
     private void setFullScreen(boolean enabled){viewing.pageFullscreen(enabled);applyPresentation();}
     private void applyPresentation(){
         fullscreen=viewing.fullscreen();boolean videoOnly=viewing.videoOnly()||isInPictureInPictureMode();
-        header.setVisibility(videoOnly?View.GONE:View.VISIBLE);toolbar.setVisibility(videoOnly?View.GONE:View.VISIBLE);progress.setVisibility(View.INVISIBLE);
+        boolean compact=isInMultiWindowMode()&&getResources().getConfiguration().screenHeightDp<540;
+        header.setVisibility(videoOnly||compact?View.GONE:View.VISIBLE);toolbar.setVisibility(videoOnly?View.GONE:View.VISIBLE);progress.setVisibility(View.INVISIBLE);
         if(!isInPictureInPictureMode()&&!viewing.inPipOrEntering()){
-            int orientation=fullscreen?ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE:ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            int orientation=isInMultiWindowMode()?ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED:
+                    fullscreen?ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE:ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
             if(getRequestedOrientation()!=orientation)setRequestedOrientation(orientation);
             WindowInsetsController bars=getWindow().getInsetsController();
             if(bars!=null){bars.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);if(fullscreen)bars.hide(WindowInsets.Type.systemBars());else bars.show(WindowInsets.Type.systemBars());}
@@ -269,27 +274,64 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         PlaybackService.setPresentation(viewing.pageMode());root.requestApplyInsets();updatePipParams();
     }
     private void leaveFullScreen(){
-        viewing.requestFullscreen(false);fullscreenSwipe.cancel();pipTransitionGeneration++;PlaybackService.cancelPipTransition();
+        resetFullscreenSwipe();viewing.requestFullscreen(false);pipTransitionGeneration++;PlaybackService.cancelPipTransition();
         if(!PlaybackService.controllerConnected())session.exitFullScreen();
         applyPresentation();
     }
     @Override public boolean dispatchTouchEvent(MotionEvent event){
         final int action=event.getActionMasked();
-        if(consumingFullscreenSwipe){
-            if(action==MotionEvent.ACTION_DOWN)consumingFullscreenSwipe=false;
-            else {if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL)consumingFullscreenSwipe=false;return true;}
+        if(!fullscreen||viewing.inPipOrEntering()||isInPictureInPictureMode()||!prefs.getBoolean("gestures",true)){
+            if(consumingFullscreenSwipe||settlingFullscreenSwipe)resetFullscreenSwipe();
+            fullscreenSwipe.cancel();return super.dispatchTouchEvent(event);
         }
-        if(!fullscreen||isInPictureInPictureMode()||!prefs.getBoolean("gestures",true)){fullscreenSwipe.cancel();return super.dispatchTouchEvent(event);}
+        if(settlingFullscreenSwipe&&action!=MotionEvent.ACTION_DOWN)return true;
         float density=getResources().getDisplayMetrics().density;
-        if(action==MotionEvent.ACTION_DOWN)fullscreenSwipe.start(event.getX()/density,event.getY()/density,event.getEventTime());
-        else if(action==MotionEvent.ACTION_POINTER_DOWN||action==MotionEvent.ACTION_CANCEL)fullscreenSwipe.cancel();
-        else if((action==MotionEvent.ACTION_MOVE||action==MotionEvent.ACTION_UP)&&event.getPointerCount()==1
-                &&fullscreenSwipe.move(event.getX()/density,event.getY()/density,event.getEventTime())){
-            MotionEvent cancel=MotionEvent.obtain(event);cancel.setAction(MotionEvent.ACTION_CANCEL);super.dispatchTouchEvent(cancel);cancel.recycle();
-            consumingFullscreenSwipe=action!=MotionEvent.ACTION_UP;leaveFullScreen();return true;
+        float x=event.getX()/density,y=event.getY()/density;
+        if(action==MotionEvent.ACTION_DOWN){
+            if(consumingFullscreenSwipe||settlingFullscreenSwipe)resetFullscreenSwipe();
+            else fullscreenSwipe.cancel(); // Preserve the page's double-tap history.
+            WindowInsets insets=root.getRootWindowInsets();
+            int top=insets==null?0:Math.max(insets.getInsetsIgnoringVisibility(WindowInsets.Type.statusBars()|WindowInsets.Type.displayCutout()).top,
+                    insets.getInsets(WindowInsets.Type.systemGestures()).top);
+            fullscreenSwipe.start(x,y,event.getEventTime(),Math.max(36,top/density));
+        }else if(action==MotionEvent.ACTION_CANCEL){
+            boolean consumed=consumingFullscreenSwipe;resetFullscreenSwipe();
+            if(consumed)return true;
+        }else if(action==MotionEvent.ACTION_POINTER_DOWN){
+            fullscreenSwipe.cancel();PlaybackService.previewFullscreenDrag(0,true);
+        }else if(action==MotionEvent.ACTION_MOVE&&event.getPointerCount()==1){
+            if(fullscreenSwipe.move(x,y,event.getEventTime())){
+                if(!consumingFullscreenSwipe)cancelPageTouch(event);
+                consumingFullscreenSwipe=true;
+                PlaybackService.previewFullscreenDrag(fullscreenSwipe.progress(),false);
+                return true;
+            }
+        }else if(action==MotionEvent.ACTION_UP){
+            boolean commit=fullscreenSwipe.release(x,y,event.getEventTime());
+            if(consumingFullscreenSwipe||commit){
+                if(!consumingFullscreenSwipe)cancelPageTouch(event);
+                finishFullscreenSwipe(commit);return true;
+            }
         }
-        if(action==MotionEvent.ACTION_UP)fullscreenSwipe.cancel();
+        if(consumingFullscreenSwipe)return true;
         return super.dispatchTouchEvent(event);
+    }
+    private void cancelPageTouch(MotionEvent event){
+        MotionEvent cancel=MotionEvent.obtain(event);cancel.setAction(MotionEvent.ACTION_CANCEL);super.dispatchTouchEvent(cancel);cancel.recycle();
+    }
+    private void resetFullscreenSwipe(){
+        fullscreenSwipeGeneration++;fullscreenSwipe.cancel();consumingFullscreenSwipe=false;settlingFullscreenSwipe=false;
+        PlaybackService.command("cancelGesture");
+    }
+    private void finishFullscreenSwipe(boolean commit){
+        consumingFullscreenSwipe=false;settlingFullscreenSwipe=true;
+        final long generation=++fullscreenSwipeGeneration;
+        PlaybackService.previewFullscreenDrag(commit?1:0,true);
+        root.postDelayed(()->{
+            if(generation!=fullscreenSwipeGeneration||isDestroyed())return;
+            settlingFullscreenSwipe=false;
+            if(commit&&foreground&&fullscreen&&!viewing.inPipOrEntering()&&!isInPictureInPictureMode())leaveFullScreen();
+        },180);
     }
     @Override public void onPlaybackChanged(boolean value){playing=value;if(musicPanel!=null)musicPanel.playback(value);updateAwake();updatePipParams();}
     private void updateAwake(){if(playing&&foreground)getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}
@@ -302,7 +344,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private void speedMenu(){double[] speeds={0.5,0.75,1,1.25,1.5,1.75,2};new MaterialAlertDialogBuilder(this).setTitle("再生速度").setItems(new String[]{"0.5倍","0.75倍","1倍","1.25倍","1.5倍","1.75倍","2倍"},(d,w)->send("speed","value",speeds[w])).show();}
     private PictureInPictureParams pipParams(){
         PictureInPictureParams.Builder params=new PictureInPictureParams.Builder().setAspectRatio(new Rational(16,9))
-                .setAutoEnterEnabled(fullscreen&&(playing||viewing.inPipOrEntering())).setSeamlessResizeEnabled(true);
+                .setAutoEnterEnabled(!isInMultiWindowMode()&&fullscreen&&(playing||viewing.inPipOrEntering())).setSeamlessResizeEnabled(true);
         Rect bounds=new Rect();if(web.getGlobalVisibleRect(bounds)&&!bounds.isEmpty())params.setSourceRectHint(bounds);
         return params.build();
     }
@@ -313,7 +355,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private void preparePip(boolean returnToFullscreen){
         if(viewing.inPipOrEntering())return;
         final long generation=++pipTransitionGeneration;
-        viewing.beginPip(returnToFullscreen);fullscreenSwipe.cancel();PlaybackService.beginPipTransition();applyPresentation();
+        resetFullscreenSwipe();viewing.beginPip(returnToFullscreen);PlaybackService.beginPipTransition();applyPresentation();
         root.postDelayed(()->{
             if(generation==pipTransitionGeneration&&!isDestroyed()&&!isInPictureInPictureMode()&&foreground&&hasWindowFocus()&&viewing.inPipOrEntering()){
                 viewing.leftPip();PlaybackService.cancelPipTransition();applyPresentation();PlaybackService.note("PiP transition cancelled");
@@ -323,8 +365,8 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     // Auto-enter is configured in PiP params. UserLeaveHint also fires for non-PiP UI;
     // only an actual OS transition (or the explicit PiP action) changes presentation.
     @Override public void onWindowFocusChanged(boolean focused){
-        super.onWindowFocusChanged(focused);fullscreenSwipe.cancel();
-        if(!focused){consumingFullscreenSwipe=false;PlaybackService.command("cancelGesture");}
+        super.onWindowFocusChanged(focused);
+        if(!focused)resetFullscreenSwipe();
     }
     @Override public void onPictureInPictureUiStateChanged(PictureInPictureUiState state){
         super.onPictureInPictureUiStateChanged(state);
@@ -349,7 +391,16 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         PlaybackService.note(inPip?"PiP entered":"PiP left");
         if(!isFinishing())applyPresentation();
     }
-    @Override public void onConfigurationChanged(Configuration config){super.onConfigurationChanged(config);PlaybackService.command("cancelGesture");fullscreenSwipe.cancel();consumingFullscreenSwipe=false;applyPresentation();}
+    @Override public void onConfigurationChanged(Configuration config){
+        super.onConfigurationChanged(config);resetFullscreenSwipe();
+        if(session!=null&&foreground)session.setActive(true);
+        applyPresentation();
+    }
+    @Override public void onMultiWindowModeChanged(boolean inMultiWindow,Configuration config){
+        super.onMultiWindowModeChanged(inMultiWindow,config);resetFullscreenSwipe();
+        if(session!=null&&foreground)session.setActive(true);
+        PlaybackService.note("multi-window="+inMultiWindow);applyPresentation();
+    }
     private void menu(){
         String gesture=prefs.getBoolean("gestures",true)?"動画ジェスチャー：ON → OFF":"動画ジェスチャー：OFF → ON";
         new MaterialAlertDialogBuilder(this).setTitle("SatiMod").setItems(new String[]{"URLを開く / 貼り付ける","動画を共有する","ページの先頭へ",gesture,"ページを再読み込みする","使い方・このアプリについて","再生の診断","再生の操作","YouTubeホームへ"},(d,w)->{
@@ -580,7 +631,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String url=launchUrl(intent);if(url!=null&&session!=null)navigate(url);}
     @Override protected void onStart(){super.onStart();foreground=true;PlaybackService.setUiForeground(true);if(session!=null)session.setActive(true);updateAwake();updatePipParams();}
     @Override protected void onResume(){super.onResume();if(session!=null)session.setFocused(true);if(!isInPictureInPictureMode()&&viewing.inPipOrEntering())viewing.leftPip();applyPresentation();}
-    @Override protected void onStop(){super.onStop();fullscreenSwipe.cancel();consumingFullscreenSwipe=false;foreground=false;PlaybackService.setUiForeground(false);updateAwake();if(session!=null)session.setActive(isInPictureInPictureMode());}
+    @Override protected void onStop(){super.onStop();resetFullscreenSwipe();foreground=false;PlaybackService.setUiForeground(false);updateAwake();if(session!=null)session.setActive(isInPictureInPictureMode());}
     @Override protected void onDestroy(){
         for(Dialog d:new ArrayList<>(auxiliary))d.dismiss();
         runtime.getWebExtensionController().setPromptDelegate(null);

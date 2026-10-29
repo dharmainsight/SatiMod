@@ -1,5 +1,31 @@
 # 検証状況
 
+## SatiMod 0.3.3 — 分割表示・下スワイプ修正（2026-10-29）
+
+versionCodeは8です。全画面解除を指のリリース時に確定し、映像の追従・引き戻し・上端の通知操作除外を実装しました。分割時はプレーヤーを小さい表示領域に収め、サイズ変更直前に再生中だった動画だけを短時間・最大2回復帰します。
+
+| 対象 | 確認結果 |
+| --- | --- |
+| JavaScript | `npm ci --offline --ignore-scripts --no-audit --no-fund` 成功。初回 `npm test` は43件成功。追加4件を含む対象再試験22件も成功 |
+| Javaのスワイプ判定 | 実際の `FullscreenSwipe.java` をJDK 17でコンパイルし、標準assertによる単独ハーネスでリリース・長押し・引き戻し・上端・横/上方向・中断を確認 |
+| Java構文 | 本番10ファイルをJDK 17のパーサーで確認。Android型検査の代替にはならない |
+| Android JUnit・Lint・APK | Gradle配布物の取得が `Network is unreachable` で失敗。SDKも未配置のため未実施 |
+| ブラウザー表示 | PlaywrightのChromium実行ファイルがなく起動不可。DOM試験と実描画を区別 |
+| Pixel実機 | 未実施。元の停止原因の端末ログ確認と、修正後の再現操作が必要 |
+
+### マージ前の実機確認
+
+Pixel 9aでAPKを起動し、YouTubeの通常動画を再生します。Androidの履歴画面から画面分割にして、相手側にChatGPTを開きます。
+
+- 分割比を2/3→1/2→1/3→1/2と変え、動画・音声・再生位置が継続すること。手動で停止してから同じ操作を行い、停止を維持すること。
+- 全画面の映像中央から下へ引き、80dpを超えても指を置いたままでは戻らないこと。指を戻すと全画面に復帰し、十分に引いて離した場合だけ縦画面になること。
+- 画面上端から通知バーを開閉し、全画面が維持されること。スワイプ中の2本指・回転・通知の割り込みでも遅れて画面が切り替わらないこと。
+- 全画面で左右ダブルタップの10秒移動、ホームからPiP、縦画面でのバックグラウンド再生、通知からの一時停止を確認すること。
+
+再生停止が残る場合は「メニュー → 再生の診断」の `multi-window` / `resize recovery` と、分割比・動画URL・停止直前の操作を記録します。
+
+実装の参照：[Androidのマルチウィンドウ](https://developer.android.com/develop/adaptive-apps/guides/support-multi-window-mode)、[GeckoViewの描画サーフェス](https://mozilla.github.io/geckoview/javadoc/mozilla-central/org/mozilla/geckoview/GeckoView.html)。
+
 ## SatiMod 0.3.2 — 2026-10-29
 
 0.3.1のソースを基に、画面・通知・拡張機能の表示名と開発プロジェクト名をSatiModへ変更しました。versionCodeは7です。音声処理・視聴表示のロジック、アプリID、設定保存名、内部プロトコルは維持しています。

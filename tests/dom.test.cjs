@@ -12,7 +12,7 @@ Object.defineProperty(w.document,'fullscreenElement',{get:()=>fsElement});
 player.requestFullscreen=()=>{fsElement=player;w.document.dispatchEvent(new w.Event('fullscreenchange'));return Promise.resolve();};
 w.document.exitFullscreen=()=>{fsElement=null;w.document.dispatchEvent(new w.Event('fullscreenchange'));return Promise.resolve();};
 w.browser={runtime:{connectNative(){connections++;return {postMessage(x){messages.push(x);if(x.type==='presentationRequest'&&x.revision===revision){if(mode!==x.mode){mode=x.mode;revision++;}commands({command:'presentation',mode,revision});}},onMessage:{addListener(f){commands=f}},onDisconnect:{addListener(f){disconnect=f}},disconnect(){disconnect?.()}};}}};
-for(const f of ['background-play.js','gestures.js','links.js','content.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
+for(const f of ['background-play.js','gestures.js','viewport-playback.js','links.js','content.js'])w.eval(fs.readFileSync(path.join(base,f),'utf8'));
 commands({command:'presentation',mode,revision});
 function touch(target,type,x,y,multi=false){const e=new w.Event(type,{bubbles:true,cancelable:true});const t={identifier:1,clientX:x,clientY:y};Object.defineProperties(e,{touches:{value:type==='touchend'?[]:multi?[t,{identifier:2,clientX:x+30,clientY:y}]:[t]},changedTouches:{value:[t]}});target.dispatchEvent(e);return e;}
 function swipe(target,x=60,y=220,x2=60,y2=80){touch(target,'touchstart',x,y);clock+=120;const move=touch(target,'touchmove',x2,y2);clock+=80;const end=touch(target,'touchend',x2,y2);return {move,end};}

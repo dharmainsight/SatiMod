@@ -7,6 +7,7 @@
   let port, touch, hintTimer, videoStateTimer, gestures = true, fakeFull = null;
   let lastTap = null, currentHref = location.href, lastReport = 0, reconnectTimer, active = false;
   let selectedVideo=null, requestedMode='inline', presentationRevision=-1, pendingRequest=null, nativeExitPending=false;
+  let nativeFullscreenSwipe=false,dragTarget=null,dragTimer;
   function video() {
     if(requestedMode!=='inline'&&selectedVideo?.isConnected)return selectedVideo;
     const all=[...document.querySelectorAll('video')];
@@ -19,6 +20,36 @@
   const isShort = () => location.pathname.startsWith('/shorts/');
   const full = () => !!fakeFull || (!!document.fullscreenElement && !nativeExitPending);
   function post(message) { try { port?.postMessage(message); } catch (_) {} }
+  const viewportPlayback=globalThis.FlowViewportPlayback.create({video,location:()=>location.href,
+    onResult:ok=>post({type:'viewportRecovery',ok})});
+  // Capture before the site's resize handlers can pause the current video.
+  const resized=()=>{viewportPlayback.resize();fitCompactPlayer();};
+  window.addEventListener('resize',resized,true);
+  window.visualViewport?.addEventListener('resize',resized);
+  for(const type of ['pointerdown','touchstart','keydown','click'])document.addEventListener(type,e=>{
+    if(e.isTrusted)viewportPlayback.cancel();
+  },true);
+  function clearDrag(){
+    clearTimeout(dragTimer);
+    if(dragTarget){dragTarget.removeAttribute('data-flowview-drag');dragTarget.removeAttribute('data-flowview-settle');}
+    dragTarget=null;
+    for(const name of ['--flowview-drag-y','--flowview-drag-scale','--flowview-drag-radius'])document.documentElement.style.removeProperty(name);
+  }
+  function previewDrag(message){
+    if(!full()||requestedMode==='pip'||message.revision!==presentationRevision)return;
+    const el=fakeFull||document.fullscreenElement;
+    if(!el)return;
+    if(dragTarget!==el){clearDrag();dragTarget=el;}
+    clearTimeout(dragTimer);
+    const progress=Math.max(0,Math.min(1,Number(message.progress)||0));
+    el.setAttribute('data-flowview-drag','');
+    el.toggleAttribute('data-flowview-settle',!!message.settle);
+    const style=document.documentElement.style;
+    style.setProperty('--flowview-drag-y',Math.min(innerHeight*.24,96)*progress+'px');
+    style.setProperty('--flowview-drag-scale',String(1-.16*progress));
+    style.setProperty('--flowview-drag-radius',24*progress+'px');
+    if(message.settle)dragTimer=setTimeout(clearDrag,220);
+  }
   function hint(message) {
     if (!document.body) return;
     let el = document.getElementById('flowview-hint');
@@ -26,6 +57,23 @@
     el.textContent = message; clearTimeout(hintTimer); hintTimer=setTimeout(()=>el.remove(),1400);
   }
   function player(v) { return v.closest('.html5-video-player') || v.closest('#player-container-id') || v; }
+  function fitCompactPlayer(){
+    const previous=[...document.querySelectorAll('[data-flowview-compact-player]')];
+    const height=window.visualViewport?.height||innerHeight,v=video();
+    let targets=[],size=0;
+    if(location.hostname==='m.youtube.com'&&location.pathname==='/watch'&&requestedMode==='inline'&&height<420&&v){
+      const p=player(v),container=v.closest('#player-container-id')||p,r=container.getBoundingClientRect();
+      const width=r.width||v.getBoundingClientRect().width,top=Math.max(0,r.top);
+      if(width>0&&top<height){
+        const ratio=v.videoWidth>0?v.videoHeight/v.videoWidth:9/16;
+        size=Math.max(1,Math.min(width*ratio,height-top-8));targets=[...new Set([container,p])];
+      }
+    }
+    for(const el of previous)if(!targets.includes(el))el.removeAttribute('data-flowview-compact-player');
+    for(const el of targets)el.setAttribute('data-flowview-compact-player','');
+    if(targets.length)document.documentElement.style.setProperty('--flowview-compact-height',size+'px');
+    else document.documentElement.style.removeProperty('--flowview-compact-height');
+  }
   // Observations are diagnostics, never requests. Only explicit input changes native mode.
   function reportFull() { post({type:'fullscreen', value:full(), revision:presentationRevision}); }
   function requestPresentation(mode) {
@@ -34,6 +82,7 @@
     post({type:'presentationRequest',mode,revision:presentationRevision});
   }
   function clearPresentation() {
+    clearDrag();
     if(fakeFull){fakeFull.removeAttribute('data-flowview-full');fakeFull=null;}
     document.querySelectorAll('[data-flowview-ancestor]').forEach(el=>el.removeAttribute('data-flowview-ancestor'));
     document.documentElement.removeAttribute('data-flowview-presentation');
@@ -83,20 +132,22 @@
     const v=video();
     if (!message || typeof message !== 'object') return;
     switch(message.command) {
-      case 'settings': gestures=message.gestures !== false; touch=null;lastTap=null;markPlayers();break;
+      case 'settings': gestures=message.gestures !== false;nativeFullscreenSwipe=message.nativeFullscreenSwipe===true;touch=null;lastTap=null;clearDrag();markPlayers();break;
+      case 'fullscreenDrag':previewDrag(message);break;
       case 'fullscreen':requestPresentation(full()?'inline':'full');break;
       case 'presentation':
         if(!['inline','full','pip'].includes(message.mode)||!Number.isSafeInteger(message.revision)||message.revision<presentationRevision)break;
-        presentationRevision=message.revision;pendingRequest=null;touch=null;lastTap=null;
+        presentationRevision=message.revision;pendingRequest=null;touch=null;lastTap=null;clearDrag();
         {const ok=message.mode==='inline'?(exit(),true):enter(message.mode);
+        fitCompactPlayer();
         post({type:'presentationApplied',mode:message.mode,revision:presentationRevision,ok,error:ok?'':'NoVideo'});}break;
       case 'state':reportFull();reportMedia();break;
-      case 'cancelGesture':touch=null;lastTap=null;break;
+      case 'cancelGesture':touch=null;lastTap=null;clearDrag();break;
       case 'music':window.postMessage({channel:'flowview-music-command',command:message.data},location.origin);break;
-      case 'play':playVideo();break;
-      case 'pause':if(v)v.pause();reportMedia();break;
+      case 'play':viewportPlayback.cancel();playVideo();break;
+      case 'pause':viewportPlayback.cancel();if(v)v.pause();reportMedia();break;
       case 'exit':requestPresentation('inline');break;
-      case 'playpause': post({type:'interaction'});if(v){if(v.paused)playVideo();else {v.pause();reportMedia();}}break;
+      case 'playpause': viewportPlayback.cancel();post({type:'interaction'});if(v){if(v.paused)playVideo();else {v.pause();reportMedia();}}break;
       case 'seek': if(message.delta===10 || message.delta===-10) seek(message.delta); break;
       case 'speed': if(v && [0.5,0.75,1,1.25,1.5,1.75,2].includes(message.value)) { v.playbackRate=message.value; hint(message.value+'倍速'); } break;
       case 'top': document.querySelectorAll(overlay).forEach(el=>{ if(el.scrollHeight>el.clientHeight) el.scrollTo({top:0,behavior:'smooth'}); }); window.scrollTo({top:0,behavior:'smooth'}); break;
@@ -127,6 +178,7 @@
     if(!gestures || e.touches.length!==1 || (isShort() && !full())) return;
     const v=video(); if(!v || !allowedTarget(e.target,v)) return;
     const t=e.touches[0],r=v.getBoundingClientRect();
+    if(full()&&t.clientY<=36)return;
     if(!full() && (t.clientX<r.left || t.clientX>r.right || t.clientY<r.top || t.clientY>r.bottom)) return;
     touch={id:t.identifier,x:t.clientX,y:t.clientY,time:performance.now(),fullscreen:full(),v,valid:true};
   },{capture:true,passive:true});
@@ -134,7 +186,7 @@
     if(!touch) return;
     if(e.touches.length!==1) { touch=null; return; }
     const t=e.touches[0],dx=t.clientX-touch.x,dy=t.clientY-touch.y;
-    if(Math.abs(dy)>12 && Math.abs(dy)>Math.abs(dx)*1.6 && (touch.fullscreen?dy>0:dy<0)) {
+    if(Math.abs(dy)>12 && Math.abs(dy)>Math.abs(dx)*1.6 && (touch.fullscreen?(!nativeFullscreenSwipe&&touch.y>36&&dy>0):dy<0)) {
       if(e.cancelable)e.preventDefault();
       e.stopImmediatePropagation();
     }
@@ -144,7 +196,7 @@
     if(!start || e.touches.length) return;
     const t=[...e.changedTouches].find(x=>x.identifier===start.id); if(!t)return;
     const dx=t.clientX-start.x,dy=t.clientY-start.y,dt=performance.now()-start.time;
-    const action=G.classify(dx,dy,dt,start.fullscreen);
+    const action=start.fullscreen&&(nativeFullscreenSwipe||start.y<=36)?null:G.classify(dx,dy,dt,start.fullscreen);
     if(action) {
       if(e.cancelable)e.preventDefault();e.stopImmediatePropagation();lastTap=null;
       requestPresentation(action==='enter'?'full':'inline');return;
@@ -163,12 +215,13 @@
     if(nativeExitPending||fakeFull||requestedMode==='pip')return;
     requestPresentation(document.fullscreenElement?'full':'inline');
   },true);
-  for(const type of ['blur','resize','orientationchange'])window.addEventListener(type,()=>{touch=null;lastTap=null;});
+  for(const type of ['blur','resize','orientationchange'])window.addEventListener(type,()=>{touch=null;lastTap=null;clearDrag();});
   for(const type of ['play','pause','ended'])document.addEventListener(type,reportMedia,true);
   function markPlayers() {
     for(const el of document.querySelectorAll('[data-flowview-gesture]')) if(!gestures || isShort())el.removeAttribute('data-flowview-gesture');
     if(requestedMode!=='inline')enter(requestedMode);
     if(gestures && !isShort()) for(const v of document.querySelectorAll('video')) {v.setAttribute('data-flowview-gesture','');player(v).setAttribute('data-flowview-gesture','');}
+    fitCompactPlayer();
   }
   let scheduled=false, frameId=null;
   const observer=new MutationObserver(()=>{
@@ -179,7 +232,7 @@
     if(active)return;active=true;
     markPlayers(); observer.observe(document.documentElement,{subtree:true,childList:true});connect();
     videoStateTimer=setInterval(()=>{
-      if(currentHref!==location.href) { currentHref=location.href; touch=null;lastTap=null;selectedVideo=null;if(location.pathname!=='/watch'&&!isShort()){exit();requestPresentation('inline');}markPlayers(); }
+      if(currentHref!==location.href) { viewportPlayback.cancel();currentHref=location.href; touch=null;lastTap=null;selectedVideo=null;if(location.pathname!=='/watch'&&!isShort()){exit();requestPresentation('inline');}markPlayers(); }
       const v=video();
       if(v) {
         const now=Date.now();
@@ -189,6 +242,6 @@
     },1200);
   }
   if(document.documentElement)init(); else document.addEventListener('DOMContentLoaded',init,{once:true});
-  window.addEventListener('pagehide',()=>{active=false;clearInterval(videoStateTimer);clearTimeout(reconnectTimer);if(frameId!==null)cancelAnimationFrame(frameId);frameId=null;scheduled=false;observer.disconnect();try{port?.disconnect();}catch(_){};port=null;});
+  window.addEventListener('pagehide',()=>{viewportPlayback.cancel();clearDrag();active=false;clearInterval(videoStateTimer);clearTimeout(reconnectTimer);if(frameId!==null)cancelAnimationFrame(frameId);frameId=null;scheduled=false;observer.disconnect();try{port?.disconnect();}catch(_){};port=null;});
   window.addEventListener('pageshow',e=>{if(e.persisted)init();});
 })();
