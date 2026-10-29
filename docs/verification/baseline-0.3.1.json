@@ -1,0 +1,20 @@
+{
+  "version": "0.3.1",
+  "versionCode": 6,
+  "status": "verified_apk",
+  "package": "jp.flowview.android",
+  "size_bytes": 212302513,
+  "sha256": "fbf8083b36bbb96fdacacfddbeee3ea05c6b38bff5888fd641bed5dc212ba950",
+  "certificate_sha256": "364e65b9dee8ce3a44405daddab21f5904410e3c158e8f42ba2abafa77a24e4a",
+  "apk_signature_verified": true,
+  "zipalign_16k_verified": true,
+  "controller_assets_match": true,
+  "note_analysis_in_apk": false,
+  "android_junit_tests": 28,
+  "javascript_tests": 37,
+  "dom_checks": 10,
+  "lint_errors": 0,
+  "lint_warnings": 16,
+  "pixel_device_tested": false,
+  "scope": "Previously built 0.3.1 APK; not a verification result for SatiMod 0.3.2."
+}

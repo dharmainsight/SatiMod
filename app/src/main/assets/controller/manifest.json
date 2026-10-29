@@ -1,0 +1,51 @@
+{
+  "manifest_version": 2,
+  "name": "SatiMod Controls",
+  "version": "0.3.2",
+  "description": "Local viewing controls for SatiMod. No telemetry.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "controls@flowview.local"
+    }
+  },
+  "permissions": [
+    "nativeMessaging",
+    "nativeMessagingFromContent",
+    "geckoViewAddons"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://m.youtube.com/*",
+        "https://youtube.com/*"
+      ],
+      "js": [
+        "background-play.js",
+        "music-worklet-source.js",
+        "music-compat.js",
+        "music-engine.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://m.youtube.com/*",
+        "https://youtube.com/*"
+      ],
+      "js": [
+        "gestures.js",
+        "links.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ]
+}
