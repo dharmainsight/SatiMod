@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "SatiMod Controls",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Local viewing controls for SatiMod. No telemetry.",
   "browser_specific_settings": {
     "gecko": {
@@ -38,6 +38,7 @@
       ],
       "js": [
         "gestures.js",
+        "viewport-playback.js",
         "links.js",
         "content.js"
       ],

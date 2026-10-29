@@ -59,7 +59,7 @@ public final class PlaybackService extends Service {
     private boolean hasFocus,resumeAfterFocus;
 
     static void note(String event){if(events.size()>=24)events.removeFirst();events.addLast((SystemClock.elapsedRealtime()/1000)+" "+event);}
-    static String diagnostics(){return "SatiMod 0.3.2 / Android API "+Build.VERSION.SDK_INT+"\nmode="+presentation.mode()+" revision="+presentation.revision()+" playing="+playing+" bridge="+(port!=null)+" engine="+(engine!=null&&engine.isActive())+"\n"+String.join("\n",events);}
+    static String diagnostics(){return "SatiMod 0.3.3 / Android API "+Build.VERSION.SDK_INT+"\nmode="+presentation.mode()+" revision="+presentation.revision()+" playing="+playing+" bridge="+(port!=null)+" engine="+(engine!=null&&engine.isActive())+"\n"+String.join("\n",events);}
     static boolean controllerConnected(){return port!=null;}
     static String presentationMode(){return presentation.mode();}
     static boolean currentPresentation(long revision){return presentation.accepts(revision);}
@@ -68,6 +68,9 @@ public final class PlaybackService extends Service {
         try{port.postMessage(message);return true;}catch(RuntimeException error){note("bridge send failed");return false;}
     }
     static boolean command(String command){try{return send(new JSONObject().put("command",command));}catch(Exception impossible){return false;}}
+    static void previewFullscreenDrag(float progress,boolean settle){
+        try{send(new JSONObject().put("command","fullscreenDrag").put("progress",progress).put("settle",settle).put("revision",presentation.revision()));}catch(Exception ignored){}
+    }
     static void setPresentation(String value){if(presentation.change(value)){note("view "+value+" #"+presentation.revision());syncPresentation();}}
     static void syncPresentation(){try{send(new JSONObject().put("command","presentation").put("mode",presentation.mode()).put("revision",presentation.revision()));}catch(Exception ignored){}}
     private static boolean youtube(String value){
@@ -86,10 +89,11 @@ public final class PlaybackService extends Service {
                         if(from!=port||!(value instanceof JSONObject))return;
                         JSONObject message=(JSONObject)value;String type=message.optString("type");
                         if("ready".equals(type)){
-                            try{send(new JSONObject().put("command","settings").put("gestures",app.getSharedPreferences("flowview",MODE_PRIVATE).getBoolean("gestures",true)));}catch(Exception ignored){}
+                            try{send(new JSONObject().put("command","settings").put("gestures",app.getSharedPreferences("flowview",MODE_PRIVATE).getBoolean("gestures",true)).put("nativeFullscreenSwipe",true));}catch(Exception ignored){}
                             syncPresentation();if(pendingTransport!=null)command(pendingTransport);
                         }else if("media".equals(type))pageState(message.optBoolean("playing"));
                         else if("interaction".equals(type)){recovery.cancel();pendingTransport=null;}
+                        else if("viewportRecovery".equals(type))note("resize recovery: "+message.optBoolean("ok"));
                         else if("playResult".equals(type)){pendingTransport=null;note(message.optBoolean("ok")?"video play accepted":"video play failed: "+message.optString("error","unknown"));if(!message.optBoolean("ok")&&instance!=null)instance.publish();}
                         else if("position".equals(type)){
                             String url=message.optString("url");double time=message.optDouble("time",0);

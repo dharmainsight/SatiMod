@@ -1,6 +1,6 @@
 {
   "name": "satimod",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "description": "JavaScript regression tests for the SatiMod Android browser",
   "scripts": {

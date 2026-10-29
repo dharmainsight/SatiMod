@@ -1,17 +1,27 @@
 package jp.flowview.android;
 
-/** Tracks a deliberate, single-finger downward swipe in density-independent pixels. */
+/** A drag previews on MOVE and commits only on UP. All distances are in dp. */
 final class FullscreenSwipe {
-    private boolean tracking;
-    private float x,y;
+    private boolean tracking,dragging;
+    private float x,y,distance;
     private long start;
-    void start(float x,float y,long time){this.x=x;this.y=y;start=time;tracking=true;}
-    void cancel(){tracking=false;}
+    void start(float x,float y,long time,float topEdge){
+        cancel();this.x=x;this.y=y;start=time;tracking=y>topEdge;
+    }
+    void cancel(){tracking=false;dragging=false;distance=0;}
+    float distance(){return distance;}
+    float progress(){return Math.min(1f,distance/80f);}
     boolean move(float x,float y,long time){
         if(!tracking)return false;
-        float dx=Math.abs(x-this.x),dy=y-this.y;long elapsed=time-start;
-        if(elapsed>1500){cancel();return false;}
-        if(elapsed>=30&&dy>=80&&dy>dx*1.6f){cancel();return true;}
-        return false;
+        float dx=Math.abs(x-this.x),dy=y-this.y;
+        if(!dragging&&(dy< -12||(dx>12&&dx*1.6f>=dy))){cancel();return false;}
+        if(dy>12&&dy>dx*1.6f)dragging=true;
+        distance=dy>dx*1.6f?Math.max(0,dy):0;
+        return dragging;
+    }
+    boolean release(float x,float y,long time){
+        move(x,y,time);
+        boolean commit=tracking&&dragging&&distance>=80&&time-start>=30;
+        cancel();return commit;
     }
 }

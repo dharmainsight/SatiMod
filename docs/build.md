@@ -46,9 +46,9 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ```sh
 zipalign -P 16 -f -v 4 app/build/outputs/apk/release/app-release-unsigned.apk SatiMod-aligned.apk
-apksigner sign --ks /secure/path/release.p12 --out SatiMod-0.3.2-arm64.apk SatiMod-aligned.apk
-apksigner verify --verbose --print-certs SatiMod-0.3.2-arm64.apk
-zipalign -c -P 16 -v 4 SatiMod-0.3.2-arm64.apk
+apksigner sign --ks /secure/path/release.p12 --out SatiMod-0.3.3-arm64.apk SatiMod-aligned.apk
+apksigner verify --verbose --print-certs SatiMod-0.3.3-arm64.apk
+zipalign -c -P 16 -v 4 SatiMod-0.3.3-arm64.apk
 ```
 
 上記ツールはAndroid SDKの `build-tools/37.0.0/` にあります。秘密鍵・パスワード・端末データはリポジトリに保存しません。既存の配布版を更新する鍵は所有者が別途管理します。

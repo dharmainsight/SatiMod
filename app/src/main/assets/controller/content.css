@@ -11,3 +11,27 @@ html[data-flowview-presentation] [data-flowview-ancestor] > :not([data-flowview-
 [data-flowview-full] { display: block !important; position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100dvh !important; min-height: 0 !important; max-height: none !important; z-index: 2147483645 !important; visibility: visible !important; opacity: 1 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; min-width: 0 !important; max-width: none !important; transform: none !important; background: #000 !important; }
 [data-flowview-full] .html5-video-container { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; transform: none !important; }
 [data-flowview-full] video { position: absolute !important; inset: 0 !important; margin: 0 !important; width: 100% !important; height: 100% !important; min-width: 0 !important; max-width: none !important; min-height: 0 !important; max-height: none !important; transform: none !important; object-fit: contain !important; visibility: visible !important; }
+/* Animate inside Gecko's compositor; keep the live video and Android surface attached. */
+html [data-flowview-drag] {
+  transform: translateY(var(--flowview-drag-y, 0px)) scale(var(--flowview-drag-scale, 1)) !important;
+  transform-origin: center center !important;
+  border-radius: var(--flowview-drag-radius, 0px) !important;
+  overflow: hidden !important;
+  will-change: transform;
+  transition: none !important;
+}
+html [data-flowview-drag][data-flowview-settle] { transition: transform 180ms ease-out, border-radius 180ms ease-out !important; }
+@media (prefers-reduced-motion: reduce) {
+  html [data-flowview-drag] { transform: none !important; border-radius: 0 !important; }
+}
+/* Keep the watch player inside a short split-screen viewport. */
+[data-flowview-compact-player] {
+  height: var(--flowview-compact-height) !important;
+  min-height: 0 !important; max-height: var(--flowview-compact-height) !important;
+  padding-bottom: 0 !important;
+}
+[data-flowview-compact-player] .html5-video-container,
+[data-flowview-compact-player] video {
+  height: 100% !important; max-height: 100% !important; min-height: 0 !important;
+  object-fit: contain !important;
+}
