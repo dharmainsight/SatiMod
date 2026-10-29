@@ -1,0 +1,13 @@
+html, body { overscroll-behavior-y: none !important; }
+video[data-flowview-gesture], .html5-video-player[data-flowview-gesture], #player-container-id[data-flowview-gesture] { touch-action: pan-x; }
+:fullscreen { background: #000 !important; touch-action: none; }
+:fullscreen video { object-fit: contain; }
+#flowview-hint { position: fixed; z-index: 2147483647; left: 50%; bottom: 18%; transform: translateX(-50%); background: #10251fee; color: #e8fff5; padding: 12px 20px; border-radius: 32px; font: 600 15px/1.5 sans-serif; pointer-events: none; box-shadow: 0 4px 24px #0006; }
+
+html[data-flowview-presentation], html[data-flowview-presentation] body { margin: 0 !important; overflow: hidden !important; }
+html[data-flowview-presentation] [data-flowview-ancestor] { display: block !important; visibility: visible !important; opacity: 1 !important; position: static !important; transform: none !important; filter: none !important; perspective: none !important; contain: none !important; content-visibility: visible !important; will-change: auto !important; overflow: visible !important; clip: auto !important; clip-path: none !important; }
+html[data-flowview-presentation] body > :not([data-flowview-ancestor]):not([data-flowview-full]),
+html[data-flowview-presentation] [data-flowview-ancestor] > :not([data-flowview-ancestor]):not([data-flowview-full]) { visibility: hidden !important; }
+[data-flowview-full] { display: block !important; position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100dvh !important; min-height: 0 !important; max-height: none !important; z-index: 2147483645 !important; visibility: visible !important; opacity: 1 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; min-width: 0 !important; max-width: none !important; transform: none !important; background: #000 !important; }
+[data-flowview-full] .html5-video-container { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; transform: none !important; }
+[data-flowview-full] video { position: absolute !important; inset: 0 !important; margin: 0 !important; width: 100% !important; height: 100% !important; min-width: 0 !important; max-width: none !important; min-height: 0 !important; max-height: none !important; transform: none !important; object-fit: contain !important; visibility: visible !important; }

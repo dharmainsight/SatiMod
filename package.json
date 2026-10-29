@@ -1,0 +1,11 @@
+{
+  "name": "satimod",
+  "version": "0.3.2",
+  "private": true,
+  "description": "JavaScript regression tests for the SatiMod Android browser",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs"
+  },
+  "engines": { "node": ">=22" },
+  "devDependencies": { "jsdom": "26.1.0" }
+}

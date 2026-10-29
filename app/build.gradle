@@ -1,0 +1,35 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'jp.flowview.android'
+    compileSdk { version = release(37) { minorApiLevel = 2 } }
+    buildToolsVersion '37.0.0'
+    defaultConfig {
+        applicationId 'jp.flowview.android'
+        minSdk 31
+        targetSdk 36
+        versionCode 7
+        versionName '0.3.2'
+        ndk { abiFilters 'arm64-v8a' }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    testOptions { unitTests.includeAndroidResources = true }
+    buildTypes { release { minifyEnabled false } }
+    packaging { jniLibs { useLegacyPackaging = false } }
+}
+dependencies {
+    implementation 'com.google.android.material:material:1.14.0'
+    implementation 'org.mozilla.geckoview:geckoview-arm64-v8a:158.0.20261021001945'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.17'
+    testImplementation 'org.json:json:20250517'
+}
+
+tasks.withType(Test).configureEach {
+    systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+    ['http.proxyHost','http.proxyPort','https.proxyHost','https.proxyPort','javax.net.ssl.trustStore','javax.net.ssl.trustStorePassword'].each { key ->
+        if (System.getProperty(key)) systemProperty key, System.getProperty(key)
+    }
+}

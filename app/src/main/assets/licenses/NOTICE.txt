@@ -1,0 +1,30 @@
+SatiMod 0.3.2
+
+Original application code and vector icon are part of the SatiMod project.
+SatiMod is not affiliated with Google, YouTube, or Mozilla.
+
+This application redistributes unmodified GeckoView for arm64-v8a,
+version 158.0.20261021001945, from Mozilla's Maven repository.
+GeckoView is licensed under the Mozilla Public License 2.0 and includes
+additional third-party notices available at about:license in the engine.
+The corresponding source is available at:
+https://hg.mozilla.org/releases/mozilla-release/rev/e4ce606692cd81e6898547e2edd7c552fefcbb04
+https://maven.mozilla.org/maven2/org/mozilla/geckoview/geckoview-arm64-v8a/158.0.20261021001945/
+MPL text is provided in MPL-2.0.txt.
+
+AndroidX, Kotlin, and other Apache-2.0 licensed transitive components
+retain their respective copyright holders. Apache-2.0.txt is included.
+GeckoView's complete embedded component notices can be opened from
+Menu > About > Licenses. build-dependencies.txt at the repository root
+records the resolved dependency versions.
+
+Third-party add-ons are not bundled. They are fetched from Mozilla Add-ons
+only when the user selects an add-on and approves its permissions.
+
+SoundTouchJS audio-worklet 2.1.1 — Mozilla Public License 2.0
+Copyright Olli Parviainen, Ryan Berdeen, Jakub Fiala, Steve Cutter Blades.
+https://github.com/cutterbl/SoundTouchJS
+Unmodified bundled processor source included in third_party/soundtouch/ in this repository.
+
+Material Components for Android 1.14.0 — Apache License 2.0
+https://github.com/material-components/material-components-android
