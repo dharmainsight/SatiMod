@@ -36,7 +36,11 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 デバッグ署名は配布版の署名と異なります。配布版へ上書きできない場合は、データを消すアンインストールで回避せず、別のテスト端末・エミュレーターを利用するか、所有者の同じ鍵でリリースAPKを署名してください。
 
-## リリースAPK
+## 更新用リリースAPK
+
+通常の更新では、[更新用APKの提供](releasing.md)に従い、前版APKとの署名・アプリID・versionCodeの比較まで行います。`scripts/package-update.py` が以下の整列・署名・確認をまとめて実行します。単にデバッグAPKを作るだけでは、配布版の上書き更新は完了しません。
+
+以下は手作業で行う場合のコマンドです。
 
 ```sh
 ./gradlew :app:assembleRelease
