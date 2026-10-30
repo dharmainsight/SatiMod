@@ -33,7 +33,7 @@ def identity(aapt, apk):
 
 def certificates(signer, apk):
     output = run([*signer, "verify", "--verbose", "--print-certs", apk])
-    found = re.findall(r"Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]+)", output)
+    found = re.findall(r"certificate SHA-256 digest: ([0-9a-fA-F]{64})", output)
     if not found:
         raise ValueError("No verified APK signing certificate")
     return {value.lower() for value in found}
