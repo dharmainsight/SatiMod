@@ -41,7 +41,7 @@ public class MusicPanelTest {
         if(text.contentEquals(root.getContentDescription()==null?"":root.getContentDescription()))return root;
         if(root instanceof ViewGroup){ViewGroup g=(ViewGroup)root;for(int i=0;i<g.getChildCount();i++){View v=described(g.getChildAt(i),text);if(v!=null)return v;}}return null;
     }
-    private void layout(View view,int height){view.measure(View.MeasureSpec.makeMeasureSpec(412,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(height,View.MeasureSpec.EXACTLY));view.layout(0,0,412,height);}
+    private void layout(View view,int height){view.forceLayout();view.measure(View.MeasureSpec.makeMeasureSpec(412,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(height,View.MeasureSpec.EXACTLY));view.layout(0,0,412,height);}
     @Test public void studioIsReadyWithoutAToggleAndKeepsThePageInteractive() throws Exception {
         try(var controller=Robolectric.buildActivity(Host.class).setup()){
             Host host=controller.get();layout(host.column,860);ArrayList<JSONObject> commands=new ArrayList<>();MusicPanel panel=new MusicPanel(host,commands::add,c->{},()->{},()->{});panel.show(host.column);
@@ -57,7 +57,7 @@ public class MusicPanelTest {
             assertTrue("Page must receive touch input while the panel is open",host.touches>=2);assertTrue(host.page.getScrollY()>0);assertTrue(panel.isShowing());
             Bitmap image=Bitmap.createBitmap(412,860,Bitmap.Config.ARGB_8888);host.column.draw(new Canvas(image));File dir=new File("build/ui-previews");dir.mkdirs();try(FileOutputStream out=new FileOutputStream(new File(dir,"music-studio.png"))){image.compress(Bitmap.CompressFormat.PNG,100,out);}
             panel.show(host.column);assertEquals(3,host.column.getChildCount());
-            layout(host.column,360);layout(host.column,360);assertTrue(host.page.getHeight()>100);
+            layout(host.column,360);layout(host.column,360);assertTrue("Page height after resize: "+host.page.getHeight(),host.page.getHeight()>100);
             described(host.column,"音楽パネルを閉じる").performClick();assertFalse(panel.isShowing());assertEquals(2,host.column.getChildCount());
             assertEquals("observe",commands.get(commands.size()-1).optString("action"));assertFalse(commands.get(commands.size()-1).optBoolean("value"));
         }

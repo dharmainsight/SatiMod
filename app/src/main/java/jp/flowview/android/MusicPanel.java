@@ -27,11 +27,11 @@ final class MusicPanel {
         heading.addView(ui.icon("close","音楽パネルを閉じる",this::dismiss,false),new LinearLayout.LayoutParams(ui.dp(48),ui.dp(48)));panel.addView(heading);
         ScrollView scroll=new ScrollView(ui.a);scroll.setFillViewport(false);scroll.setClipToPadding(false);scroll.setVerticalScrollBarEnabled(false);LinearLayout body=ui.column();scroll.addView(body);panel.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         status=ui.text("キー・テンポを調整できます",12,FlowUi.MUTED);body.addView(status);ui.gap(body,8);
-        LinearLayout controls=ui.card();controls.addView(ui.text("キー / 半音",12,FlowUi.MUTED));ui.gap(controls,12);
+        LinearLayout controls=ui.card();controls.setPadding(ui.dp(12),ui.dp(8),ui.dp(12),ui.dp(8));controls.addView(ui.text("キー / 半音",12,FlowUi.MUTED));ui.gap(controls,4);
         LinearLayout key=ui.row();minus=ui.icon("minus","キーを半音下げる",()->command("pitch",Math.max(-12,pitch-1)),false);plus=ui.icon("plus","キーを半音上げる",()->command("pitch",Math.min(12,pitch+1)),true);
-        pitchValue=ui.title("±0",38);pitchValue.setGravity(android.view.Gravity.CENTER);pitchValue.setFontFeatureSettings("tnum");
-        key.addView(minus,new LinearLayout.LayoutParams(ui.dp(56),ui.dp(56)));key.addView(pitchValue,new LinearLayout.LayoutParams(0,ui.dp(58),1));key.addView(plus,new LinearLayout.LayoutParams(ui.dp(56),ui.dp(56)));controls.addView(key);ui.gap(controls,18);
-        View divider=new View(ui.a);divider.setBackgroundColor(FlowUi.LINE);controls.addView(divider,new LinearLayout.LayoutParams(-1,ui.dp(1)));ui.gap(controls,18);
+        pitchValue=ui.title("±0",32);pitchValue.setGravity(android.view.Gravity.CENTER);pitchValue.setFontFeatureSettings("tnum");
+        key.addView(minus,new LinearLayout.LayoutParams(ui.dp(48),ui.dp(48)));key.addView(pitchValue,new LinearLayout.LayoutParams(0,ui.dp(48),1));key.addView(plus,new LinearLayout.LayoutParams(ui.dp(48),ui.dp(48)));controls.addView(key);ui.gap(controls,8);
+        View divider=new View(ui.a);divider.setBackgroundColor(FlowUi.LINE);controls.addView(divider,new LinearLayout.LayoutParams(-1,ui.dp(1)));ui.gap(controls,8);
         LinearLayout speedTitle=ui.row();speedTitle.addView(ui.text("テンポ",12,FlowUi.MUTED),new LinearLayout.LayoutParams(0,-2,1));tempoValue=ui.title("100%",24);tempoValue.setFontFeatureSettings("tnum");speedTitle.addView(tempoValue);controls.addView(speedTitle);ui.gap(controls,8);
         LinearLayout speedRow=ui.row();slower=ui.icon("minus","テンポを5%下げる",()->command("tempo",Math.max(.5,Math.round((tempo-.05)*100)/100.0)),false);faster=ui.icon("plus","テンポを5%上げる",()->command("tempo",Math.min(2,Math.round((tempo+.05)*100)/100.0)),false);
         speed=new Slider(ui.a);speed.setValueFrom(50);speed.setValueTo(200);speed.setStepSize(5);speed.setValue(100);speed.setContentDescription("再生テンポ、50%から200%");speed.setLabelFormatter(v->Math.round(v)+"%");
