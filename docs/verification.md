@@ -6,8 +6,8 @@ versionCodeは9です。小窓（PiP）への移行前に動画側で再生状�
 
 | 対象 | 確認結果 |
 | --- | --- |
-| JavaScript | 初回53件成功。追加・変更した対象の再検証中 |
-| Android JUnit・Lint・リリースAPK | 実行中 |
+| JavaScript | `npm test` 53件成功。追加3件を含む変更対象の再試験（PiP関連28件・音楽13件）も成功。合計56件の対象を確認 |
+| Android JUnit・Lint・リリースAPK | 全体の25件と、修正後の音楽パネル1件に成功。ページスワイプ・縮小・閉じるを確認。リリースビルド成功、Lintはエラー0・警告16件。対象ソースは `bc9e829038e74b0aecb85d8b13a686a6bffae57a` |
 | 更新互換性 | アプリID `jp.flowview.android` を維持。署名・versionCode・16KiB整列の確認待ち |
 | Pixel 9a実機・エミュレーター | 未実施。以下の操作確認が必要 |
 
