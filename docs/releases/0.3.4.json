@@ -1,0 +1,16 @@
+{
+  "package": "jp.flowview.android",
+  "version_code": 9,
+  "version": "0.3.4",
+  "source_commit": "bc9e829038e74b0aecb85d8b13a686a6bffae57a",
+  "previous_version": "0.3.3",
+  "previous_version_code": 8,
+  "file_name": "SatiMod-0.3.4-arm64.apk",
+  "size_bytes": 212306693,
+  "sha256": "86ec45598638a0e5e182dee98fdf9c4948bbfb998b80573d69e4548e8a41511d",
+  "certificate_sha256": "364e65b9dee8ce3a44405daddab21f5904410e3c158e8f42ba2abafa77a24e4a",
+  "signature_verified": true,
+  "zipalign_16k_verified": true,
+  "controller_assets_match": true,
+  "device_update_tested": false
+}
