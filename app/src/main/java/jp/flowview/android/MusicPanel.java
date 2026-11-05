@@ -20,6 +20,7 @@ final class MusicPanel {
     MusicPanel(Activity a,Consumer<JSONObject> send,Consumer<String> transport,Runnable fullscreen,Runnable pip){ui=new FlowUi(a);this.send=send;this.transport=transport;this.fullscreen=fullscreen;this.pip=pip;}
     private void command(String action,Object value){try{JSONObject data=new JSONObject().put("action",action);if(value!=null)data.put("value",value);send.accept(data);}catch(Exception ignored){}}
     boolean isShowing(){return panel!=null;}
+    void toggle(LinearLayout host){if(isShowing())dismiss();else show(host);}
     void show(LinearLayout host){
         if(isShowing())return;
         parent=host;panel=ui.column();panel.setBackground(ui.shape(FlowUi.SURFACE,24));panel.setPadding(ui.dp(12),ui.dp(4),ui.dp(12),ui.dp(8));
