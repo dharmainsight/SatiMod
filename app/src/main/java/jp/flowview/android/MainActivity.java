@@ -166,7 +166,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         catch(Exception ignored){}
     }
     private void showMusic(){
-        musicPanel.show(column);
+        musicPanel.toggle(column);
     }
 
     private void configureSession(GeckoSession s,boolean main){
