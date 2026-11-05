@@ -55,7 +55,7 @@ public final class PlaybackService extends Service {
     private boolean hasFocus,resumeAfterFocus;
 
     static void note(String event){if(events.size()>=24)events.removeFirst();events.addLast((SystemClock.elapsedRealtime()/1000)+" "+event);}
-    static String diagnostics(){return "SatiMod 0.3.4 / Android API "+Build.VERSION.SDK_INT+"\nmode="+presentation.mode()+" revision="+presentation.revision()+" playing="+playing+" bridge="+(port!=null)+" engine="+(engine!=null&&engine.isActive())+"\n"+String.join("\n",events);}
+    static String diagnostics(){return "SatiMod 0.3.5 / Android API "+Build.VERSION.SDK_INT+"\nmode="+presentation.mode()+" revision="+presentation.revision()+" playing="+playing+" bridge="+(port!=null)+" engine="+(engine!=null&&engine.isActive())+"\n"+String.join("\n",events);}
     static boolean controllerConnected(){return port!=null;}
     static String presentationMode(){return presentation.mode();}
     static boolean currentPresentation(long revision){return presentation.accepts(revision);}

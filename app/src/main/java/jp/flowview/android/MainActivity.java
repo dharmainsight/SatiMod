@@ -153,7 +153,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         web=new GeckoView(this);web.setOverScrollMode(View.OVER_SCROLL_NEVER);web.setBackgroundColor(BG);column.addView(web,new LinearLayout.LayoutParams(-1,0,1));
         toolbar=ui.row();toolbar.setBackground(ui.shape(FlowUi.SURFACE,26));toolbar.setPadding(dp(5),dp(5),dp(5),dp(5));toolbar.setElevation(dp(4));
         MaterialButton back=ui.nav("back","戻る",this::back,false);forwardButton=ui.nav("forward","進む",this::forward,false);forwardButton.setEnabled(false);forwardButton.setAlpha(.35f);
-        Button[] buttons={back,forwardButton,ui.nav("refresh","更新",this::confirmReload,false),ui.nav("music","音楽",this::showMusic,true),ui.nav("extensions","拡張",this::extensionsMenu,false),ui.nav("more","メニュー",this::menu,false)};
+        Button[] buttons={back,forwardButton,ui.nav("refresh","更新",this::confirmReload,false),ui.nav("music","音楽",this::toggleMusic,true),ui.nav("extensions","拡張",this::extensionsMenu,false),ui.nav("more","メニュー",this::menu,false)};
         for(int i=0;i<buttons.length;i++){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(60),i==3?1.2f:1);lp.setMargins(dp(1),0,dp(1),0);toolbar.addView(buttons[i],lp);}
         LinearLayout.LayoutParams dock=new LinearLayout.LayoutParams(-1,dp(70));dock.setMargins(dp(10),dp(8),dp(10),dp(8));column.addView(toolbar,dock);
         root.setOnApplyWindowInsetsListener((v,insets)->{
@@ -164,6 +164,10 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private void sendMusic(JSONObject data){
         try{if(!PlaybackService.send(new JSONObject().put("command","music").put("data",data)))musicPanel.update(new JSONObject().put("error","NoVideo"));}
         catch(Exception ignored){}
+    }
+    private void toggleMusic(){
+        if(musicPanel.isShowing())musicPanel.dismiss();
+        else showMusic();
     }
     private void showMusic(){
         musicPanel.show(column);
@@ -608,7 +612,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         },"addon-import").start();
     }
 
-    private void about(){alert("SatiMod 0.3.4 · 試用版","通常動画の映像上で↑全画面、全画面中に↓で縦画面へ。左右をダブルタップすると10秒移動します。\n\nコメントとShortsの通常スクロールには介入しません。操作が競合する場合は動画ジェスチャーをOFFにできます。\n\n全画面再生中にホームへ移動すると、ドラッグで移動できる小窓（PiP）になります。縦画面から離れると、画面を出さずに音声を継続します。通知から一時停止・再開・停止できます。\n\nリンクや動画を長押しするとリンクをコピーします。拡張は名前・キーワードで検索できます。\n\n下部の「音楽」を開くと、キー±12半音・テンポ50〜200%を調整できます。キーとテンポは独立して調整できます。パネルを開いたまま動画ページをスクロールできます。\n\n更新は下部バーまたはメニューから確認後に行います。OSがアプリを終了した場合は再読み込みが必要です。通常動画の再生位置は約5秒ごとに端末に保存し、次の起動時に復帰を試みます。\n\nGoogle/YouTubeの公式アプリではありません。YouTubeへのログイン・動画・拡張は各サービスに通信します。SatiMod独自の解析送信やアカウント作成はありません。\n\nGeckoView 158 / Mozilla Public License 2.0。改変なしで使用。ソース：https://hg.mozilla.org/releases/mozilla-release/rev/e4ce606692cd81e6898547e2edd7c552fefcbb04\n\nSoundTouchJS 2.1.1 / MPL 2.0。ソースとライセンス：https://github.com/cutterbl/SoundTouchJS\nMaterial Components 1.14.0 / Apache 2.0。ソース：https://github.com/material-components/material-components-android\n\nブラウザーエンジン更新は新しいAPKの導入が必要です。");}
+    private void about(){alert("SatiMod 0.3.5 · 試用版","通常動画の映像上で↑全画面、全画面中に↓で縦画面へ。左右をダブルタップすると10秒移動します。\n\nコメントとShortsの通常スクロールには介入しません。操作が競合する場合は動画ジェスチャーをOFFにできます。\n\n全画面再生中にホームへ移動すると、ドラッグで移動できる小窓（PiP）になります。縦画面から離れると、画面を出さずに音声を継続します。通知から一時停止・再開・停止できます。\n\nリンクや動画を長押しするとリンクをコピーします。拡張は名前・キーワードで検索できます。\n\n下部の「音楽」を開くと、キー±12半音・テンポ50〜200%を調整できます。キーとテンポは独立して調整できます。パネルを開いたまま動画ページをスクロールできます。\n\n更新は下部バーまたはメニューから確認後に行います。OSがアプリを終了した場合は再読み込みが必要です。通常動画の再生位置は約5秒ごとに端末に保存し、次の起動時に復帰を試みます。\n\nGoogle/YouTubeの公式アプリではありません。YouTubeへのログイン・動画・拡張は各サービスに通信します。SatiMod独自の解析送信やアカウント作成はありません。\n\nGeckoView 158 / Mozilla Public License 2.0。改変なしで使用。ソース：https://hg.mozilla.org/releases/mozilla-release/rev/e4ce606692cd81e6898547e2edd7c552fefcbb04\n\nSoundTouchJS 2.1.1 / MPL 2.0。ソースとライセンス：https://github.com/cutterbl/SoundTouchJS\nMaterial Components 1.14.0 / Apache 2.0。ソース：https://github.com/material-components/material-components-android\n\nブラウザーエンジン更新は新しいAPKの導入が必要です。");}
     private void alert(String title,String message){
         if(isFinishing())return;
         AlertDialog.Builder b=new MaterialAlertDialogBuilder(this).setTitle(title).setMessage(message).setPositiveButton("OK",null);
