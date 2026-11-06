@@ -1,0 +1,19 @@
+{
+  "package": "jp.flowview.android",
+  "version_code": 11,
+  "version": "0.3.6",
+  "source_base_commit": "b4be661610eb3d3b75204c08b70b83cf834d0233",
+  "packaging_method": "binary patch from SatiMod-0.3.5-arm64.apk applying MainActivity.showMusic open-close toggle equivalent to merged source logic, then resigned with the established release key",
+  "previous_artifact": "SatiMod-0.3.5-arm64.apk",
+  "file_name": "SatiMod-0.3.6-arm64.apk",
+  "size_bytes": 212341019,
+  "sha256": "6026816bad44f71ac8965550d53f26b433614943669567641ec11f49dc93be39",
+  "certificate_sha256": "364e65b9dee8ce3a44405daddab21f5904410e3c158e8f42ba2abafa77a24e4a",
+  "signature_scheme": "APK Signature Scheme v2",
+  "signature_verified": true,
+  "zipalign_16k_verified": true,
+  "dex_toggle_verified": true,
+  "controller_version_match": true,
+  "source_rebuild_tested": false,
+  "device_update_tested": false
+}
