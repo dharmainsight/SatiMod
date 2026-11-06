@@ -166,8 +166,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         catch(Exception ignored){}
     }
     private void showMusic(){
-        Dialog d=musicPanel.show();if(!auxiliary.contains(d))auxiliary.add(d);
-        d.setOnDismissListener(x->{musicPanel.dismissed();auxiliary.remove(d);});
+        musicPanel.toggle(column);
     }
 
     private void configureSession(GeckoSession s,boolean main){
@@ -234,7 +233,9 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private void attachController(){PlaybackService.connectController(controller);}
     @Override public void onControllerMessage(JSONObject message){
         String type=message.optString("type");
-        if("presentationRequest".equals(type)){
+        if("ready".equals(type)&&musicPanel.isShowing()){
+            try{sendMusic(new JSONObject().put("action","query"));}catch(Exception ignored){}
+        }else if("presentationRequest".equals(type)){
             if(!foreground||viewing.inPipOrEntering()||!PlaybackService.currentPresentation(message.optLong("revision",-1))){PlaybackService.syncPresentation();return;}
             String mode=message.optString("mode");
             if("inline".equals(mode))leaveFullScreen();
@@ -262,6 +263,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private void setFullScreen(boolean enabled){viewing.pageFullscreen(enabled);applyPresentation();}
     private void applyPresentation(){
         fullscreen=viewing.fullscreen();boolean videoOnly=viewing.videoOnly()||isInPictureInPictureMode();
+        if(videoOnly)musicPanel.dismiss();
         boolean compact=isInMultiWindowMode()&&getResources().getConfiguration().screenHeightDp<540;
         header.setVisibility(videoOnly||compact?View.GONE:View.VISIBLE);toolbar.setVisibility(videoOnly?View.GONE:View.VISIBLE);progress.setVisibility(View.INVISIBLE);
         if(!isInPictureInPictureMode()&&!viewing.inPipOrEntering()){
@@ -355,7 +357,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private void preparePip(boolean returnToFullscreen){
         if(viewing.inPipOrEntering())return;
         final long generation=++pipTransitionGeneration;
-        resetFullscreenSwipe();viewing.beginPip(returnToFullscreen);PlaybackService.beginPipTransition();applyPresentation();
+        resetFullscreenSwipe();viewing.beginPip(returnToFullscreen);if(session!=null)session.setActive(true);PlaybackService.beginPipTransition();applyPresentation();
         root.postDelayed(()->{
             if(generation==pipTransitionGeneration&&!isDestroyed()&&!isInPictureInPictureMode()&&foreground&&hasWindowFocus()&&viewing.inPipOrEntering()){
                 viewing.leftPip();PlaybackService.cancelPipTransition();applyPresentation();PlaybackService.note("PiP transition cancelled");
@@ -428,7 +430,9 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private void openInput(){input("URL または検索語",currentUrl,text->{if(text.startsWith("https://"))navigate(text);else navigate("https://m.youtube.com/results?search_query="+Uri.encode(text));});}
     private void search(){input("YouTubeで検索","",q->navigate("https://m.youtube.com/results?search_query="+Uri.encode(q)));}
     private void navigate(String url){if(fullscreen)leaveFullScreen();session.loadUri(url);}
-    private void back(){if(fullscreen){leaveFullScreen();return;}if(session!=null&&canBack)session.goBack();else moveTaskToBack(true);}
+    private void back(){
+        if(musicPanel.isShowing()){musicPanel.dismiss();return;}
+        if(fullscreen){leaveFullScreen();return;}if(session!=null&&canBack)session.goBack();else moveTaskToBack(true);}
     private void forward(){if(session!=null&&canForward){if(fullscreen)leaveFullScreen();session.goForward();}}
     private void confirmReload(){
         new MaterialAlertDialogBuilder(this).setTitle("ページを更新しますか？").setMessage("再生位置や入力中の内容が変わることがあります。")
@@ -501,7 +505,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         body.addView(ui.button("拡張を検索する","search",()->{d.dismiss();searchAddons();},false),new LinearLayout.LayoutParams(-1,dp(52)));ui.gap(body,10);
         body.addView(ui.button("インストール済みを管理","extensions",()->{d.dismiss();installedExtensions();},false),new LinearLayout.LayoutParams(-1,dp(52)));ui.gap(body,18);
         body.addView(ui.text("外部の音声拡張",12,FlowUi.MUTED));ui.gap(body,10);
-        body.addView(ui.button("PitchShifter を追加","plus",()->{d.dismiss();installAddon("https://addons.mozilla.org/firefox/downloads/latest/pitchshifter/latest.xpi",null);},false),new LinearLayout.LayoutParams(-1,dp(48)));ui.gap(body,8);body.addView(ui.text("Firefox for Android対応。外部の音声拡張へ切り替えるときは、内蔵Music StudioをOFFにしてページを更新してください。",12,FlowUi.MUTED));ui.gap(body,12);
+        body.addView(ui.button("PitchShifter を追加","plus",()->{d.dismiss();installAddon("https://addons.mozilla.org/firefox/downloads/latest/pitchshifter/latest.xpi",null);},false),new LinearLayout.LayoutParams(-1,dp(48)));ui.gap(body,8);body.addView(ui.text("Firefox for Android対応。外部の音声拡張へ切り替えるときは、内蔵Music Studioを原曲のキー・テンポに戻してページを更新してください。",12,FlowUi.MUTED));ui.gap(body,12);
         body.addView(ui.button("URL・XPIから追加 / その他",null,()->{d.dismiss();addonsCatalog();},false),new LinearLayout.LayoutParams(-1,dp(48)));
         d.setOnDismissListener(x->auxiliary.remove(d));auxiliary.add(d);d.show();
     }
@@ -604,7 +608,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         },"addon-import").start();
     }
 
-    private void about(){alert("SatiMod 0.3.2 · 試用版","通常動画の映像上で↑全画面、全画面中に↓で縦画面へ。左右をダブルタップすると10秒移動します。\n\nコメントとShortsの通常スクロールには介入しません。操作が競合する場合は動画ジェスチャーをOFFにできます。\n\n全画面再生中にホームへ移動すると、ドラッグで移動できる小窓（PiP）になります。縦画面から離れると、画面を出さずに音声を継続します。通知から一時停止・再開・停止できます。\n\nリンクや動画を長押しするとリンクをコピーします。拡張は名前・キーワードで検索できます。\n\n下部の「音楽」からMusic StudioをONにすると、キー±12半音・テンポ50〜200%を調整できます。キーとテンポは独立して調整できます。\n\n更新は下部バーまたはメニューから確認後に行います。OSがアプリを終了した場合は再読み込みが必要です。通常動画の再生位置は約5秒ごとに端末に保存し、次の起動時に復帰を試みます。\n\nGoogle/YouTubeの公式アプリではありません。YouTubeへのログイン・動画・拡張は各サービスに通信します。SatiMod独自の解析送信やアカウント作成はありません。\n\nGeckoView 158 / Mozilla Public License 2.0。改変なしで使用。ソース：https://hg.mozilla.org/releases/mozilla-release/rev/e4ce606692cd81e6898547e2edd7c552fefcbb04\n\nSoundTouchJS 2.1.1 / MPL 2.0。ソースとライセンス：https://github.com/cutterbl/SoundTouchJS\nMaterial Components 1.14.0 / Apache 2.0。ソース：https://github.com/material-components/material-components-android\n\nブラウザーエンジン更新は新しいAPKの導入が必要です。");}
+    private void about(){alert("SatiMod 0.3.4 · 試用版","通常動画の映像上で↑全画面、全画面中に↓で縦画面へ。左右をダブルタップすると10秒移動します。\n\nコメントとShortsの通常スクロールには介入しません。操作が競合する場合は動画ジェスチャーをOFFにできます。\n\n全画面再生中にホームへ移動すると、ドラッグで移動できる小窓（PiP）になります。縦画面から離れると、画面を出さずに音声を継続します。通知から一時停止・再開・停止できます。\n\nリンクや動画を長押しするとリンクをコピーします。拡張は名前・キーワードで検索できます。\n\n下部の「音楽」を開くと、キー±12半音・テンポ50〜200%を調整できます。キーとテンポは独立して調整できます。パネルを開いたまま動画ページをスクロールできます。\n\n更新は下部バーまたはメニューから確認後に行います。OSがアプリを終了した場合は再読み込みが必要です。通常動画の再生位置は約5秒ごとに端末に保存し、次の起動時に復帰を試みます。\n\nGoogle/YouTubeの公式アプリではありません。YouTubeへのログイン・動画・拡張は各サービスに通信します。SatiMod独自の解析送信やアカウント作成はありません。\n\nGeckoView 158 / Mozilla Public License 2.0。改変なしで使用。ソース：https://hg.mozilla.org/releases/mozilla-release/rev/e4ce606692cd81e6898547e2edd7c552fefcbb04\n\nSoundTouchJS 2.1.1 / MPL 2.0。ソースとライセンス：https://github.com/cutterbl/SoundTouchJS\nMaterial Components 1.14.0 / Apache 2.0。ソース：https://github.com/material-components/material-components-android\n\nブラウザーエンジン更新は新しいAPKの導入が必要です。");}
     private void alert(String title,String message){
         if(isFinishing())return;
         AlertDialog.Builder b=new MaterialAlertDialogBuilder(this).setTitle(title).setMessage(message).setPositiveButton("OK",null);
@@ -631,8 +635,9 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String url=launchUrl(intent);if(url!=null&&session!=null)navigate(url);}
     @Override protected void onStart(){super.onStart();foreground=true;PlaybackService.setUiForeground(true);if(session!=null)session.setActive(true);updateAwake();updatePipParams();}
     @Override protected void onResume(){super.onResume();if(session!=null)session.setFocused(true);if(!isInPictureInPictureMode()&&viewing.inPipOrEntering())viewing.leftPip();applyPresentation();}
-    @Override protected void onStop(){super.onStop();resetFullscreenSwipe();foreground=false;PlaybackService.setUiForeground(false);updateAwake();if(session!=null)session.setActive(isInPictureInPictureMode());}
+    @Override protected void onStop(){super.onStop();resetFullscreenSwipe();foreground=false;PlaybackService.setUiForeground(false);updateAwake();if(session!=null)session.setActive(isInPictureInPictureMode()||viewing.inPipOrEntering());}
     @Override protected void onDestroy(){
+        musicPanel.dismiss();
         for(Dialog d:new ArrayList<>(auxiliary))d.dismiss();
         runtime.getWebExtensionController().setPromptDelegate(null);
         for(WebExtension e:attachedExtensions){e.setActionDelegate(null);e.setTabDelegate(null);}

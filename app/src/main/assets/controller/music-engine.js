@@ -1,9 +1,9 @@
 (() => {
  'use strict';if(window.top!==window)return;
  const records=new WeakMap(),workletSource=window.FlowViewWorkletSource;
- let ctx,preparing,backend='',record=null,enabled=false,busy=false,observing=false,pitch=0,tempo=1,generation=0,error='',detail='',live=true;
+ let ctx,preparing,backend='',record=null,enabled=true,busy=false,observing=false,pitch=0,tempo=1,generation=0,error='',detail='',live=true;
  const knownErrors=new Set(['NoVideo','ProtectedMedia','CrossOriginMedia','AudioAlreadyConnected','ResumeTimeout','VideoChanged','AudioUnavailable']);
- function report(){if(live)window.postMessage({channel:'flowview-music-state',state:{enabled,busy,pitch,tempo,error,detail,backend}},location.origin);}
+ function report(){if(live){const v=video(),rate=record?tempo:(v?.playbackRate||1);window.postMessage({channel:'flowview-music-state',state:{enabled,busy,pitch,tempo:rate,error:(!v&&enabled)?'NoVideo':error,detail,backend}},location.origin);}}
  function video(){return [...document.querySelectorAll('video')].filter(v=>v.isConnected).sort((a,b)=>Number(a.paused)-Number(b.paused)||b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight)[0]||null;}
  function deadline(promise,ms,code){return new Promise((resolve,reject)=>{const id=setTimeout(()=>reject(new Error(code)),ms);Promise.resolve(promise).then(v=>{clearTimeout(id);resolve(v);},e=>{clearTimeout(id);reject(e);});});}
  function dry(r,restore=false){
@@ -16,6 +16,7 @@
  function select(v){
   if(!v)throw new Error('NoVideo');if(record?.video===v)return record;
   if(record)dry(record,true);
+  else tempo=Number.isFinite(v.playbackRate)?Math.max(.5,Math.min(2,v.playbackRate)):1;
   let r=records.get(v);if(!r){r={video:v,source:null,node:null,wet:false};records.set(v,r);}
   r.savedRate=v.playbackRate;r.savedPitch=v.preservesPitch;record=r;dry(r);return r;
  }
@@ -78,7 +79,7 @@
   try{const v=video(),rate=v?.playbackRate,preserve=v?.preservesPitch;const r=select(v);r.savedRate=rate;r.savedPitch=preserve;enabled=true;pitch=0;route();}catch(e){enabled=false;error='NoVideo';}report();
  }
  function tick(){
-  if(enabled){const v=video();if(v&&record?.video!==v){const wanted=pitch;generation++;busy=false;pitch=0;select(v);route();if(wanted)changePitch(wanted);}}
+  if(enabled&&record){const v=video();if(v&&record?.video!==v){const wanted=pitch;generation++;busy=false;pitch=0;select(v);route();if(wanted)changePitch(wanted);}}
   if(observing)report();
  }
  window.addEventListener('message',e=>{
@@ -87,10 +88,10 @@
   switch(m.action){
    case 'query':observing=true;report();break;
    case 'observe':observing=m.value===true;break;
-   case 'enable':if(m.value===true){if(!enabled)activate();}else{disable();report();}break;
+   case 'enable':if(m.value===true){if(!enabled)activate();else report();}else{disable();report();}break;
    case 'pitch':changePitch(m.value);break;
-   case 'tempo':if(enabled&&Number.isFinite(m.value)&&m.value>=.5&&m.value<=2){tempo=m.value;route();report();}break;
-   case 'reset':generation++;busy=false;pitch=0;tempo=1;error='';detail='';if(enabled)route();report();break;
+   case 'tempo':if(enabled&&Number.isFinite(m.value)&&m.value>=.5&&m.value<=2){try{select(video());tempo=m.value;error='';route();}catch(e){error='NoVideo';}report();}break;
+   case 'reset':generation++;busy=false;pitch=0;error='';detail='';if(enabled){try{select(video());tempo=1;route();}catch(e){error='NoVideo';}}else tempo=1;report();break;
   }
  });
  document.addEventListener('ratechange',e=>{if(enabled&&record?.video===e.target){tempo=Math.max(.5,Math.min(2,e.target.playbackRate));route();if(observing)report();}},true);

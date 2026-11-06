@@ -21,7 +21,7 @@
   const full = () => !!fakeFull || (!!document.fullscreenElement && !nativeExitPending);
   function post(message) { try { port?.postMessage(message); } catch (_) {} }
   const viewportPlayback=globalThis.FlowViewportPlayback.create({video,location:()=>location.href,
-    onResult:ok=>post({type:'viewportRecovery',ok})});
+    onResult:(ok,reason)=>post({type:'viewportRecovery',ok,reason})});
   // Capture before the site's resize handlers can pause the current video.
   const resized=()=>{viewportPlayback.resize();fitCompactPlayer();};
   window.addEventListener('resize',resized,true);
@@ -135,8 +135,11 @@
       case 'settings': gestures=message.gestures !== false;nativeFullscreenSwipe=message.nativeFullscreenSwipe===true;touch=null;lastTap=null;clearDrag();markPlayers();break;
       case 'fullscreenDrag':previewDrag(message);break;
       case 'fullscreen':requestPresentation(full()?'inline':'full');break;
+      case 'preparePip':viewportPlayback.transition();break;
+      case 'cancelPlaybackRecovery':viewportPlayback.cancel();break;
       case 'presentation':
         if(!['inline','full','pip'].includes(message.mode)||!Number.isSafeInteger(message.revision)||message.revision<presentationRevision)break;
+        if(message.mode!==requestedMode)viewportPlayback.transition();
         presentationRevision=message.revision;pendingRequest=null;touch=null;lastTap=null;clearDrag();
         {const ok=message.mode==='inline'?(exit(),true):enter(message.mode);
         fitCompactPlayer();

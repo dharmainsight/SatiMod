@@ -18,8 +18,6 @@ import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.IBinder;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.SystemClock;
 import android.net.Uri;
 import org.json.JSONObject;
@@ -44,8 +42,6 @@ public final class PlaybackService extends Service {
     private static WebExtension.Port port;
     private static final PresentationProtocol presentation=new PresentationProtocol();
     private static String pendingTransport;
-    private static final Handler handler=new Handler(Looper.getMainLooper());
-    private static final PlaybackRecovery recovery=new PlaybackRecovery();
     private static final ArrayDeque<String> events=new ArrayDeque<>();
     private static WeakReference<Observer> observer=new WeakReference<>(null);
     private static boolean playing,uiForeground,starting;
@@ -59,7 +55,7 @@ public final class PlaybackService extends Service {
     private boolean hasFocus,resumeAfterFocus;
 
     static void note(String event){if(events.size()>=24)events.removeFirst();events.addLast((SystemClock.elapsedRealtime()/1000)+" "+event);}
-    static String diagnostics(){return "SatiMod 0.3.3 / Android API "+Build.VERSION.SDK_INT+"\nmode="+presentation.mode()+" revision="+presentation.revision()+" playing="+playing+" bridge="+(port!=null)+" engine="+(engine!=null&&engine.isActive())+"\n"+String.join("\n",events);}
+    static String diagnostics(){return "SatiMod 0.3.4 / Android API "+Build.VERSION.SDK_INT+"\nmode="+presentation.mode()+" revision="+presentation.revision()+" playing="+playing+" bridge="+(port!=null)+" engine="+(engine!=null&&engine.isActive())+"\n"+String.join("\n",events);}
     static boolean controllerConnected(){return port!=null;}
     static String presentationMode(){return presentation.mode();}
     static boolean currentPresentation(long revision){return presentation.accepts(revision);}
@@ -92,8 +88,8 @@ public final class PlaybackService extends Service {
                             try{send(new JSONObject().put("command","settings").put("gestures",app.getSharedPreferences("flowview",MODE_PRIVATE).getBoolean("gestures",true)).put("nativeFullscreenSwipe",true));}catch(Exception ignored){}
                             syncPresentation();if(pendingTransport!=null)command(pendingTransport);
                         }else if("media".equals(type))pageState(message.optBoolean("playing"));
-                        else if("interaction".equals(type)){recovery.cancel();pendingTransport=null;}
-                        else if("viewportRecovery".equals(type))note("resize recovery: "+message.optBoolean("ok"));
+                        else if("interaction".equals(type)){cancelPipTransition();pendingTransport=null;}
+                        else if("viewportRecovery".equals(type))note(message.optString("reason","resize")+" recovery: "+message.optBoolean("ok"));
                         else if("playResult".equals(type)){pendingTransport=null;note(message.optBoolean("ok")?"video play accepted":"video play failed: "+message.optString("error","unknown"));if(!message.optBoolean("ok")&&instance!=null)instance.publish();}
                         else if("position".equals(type)){
                             String url=message.optString("url");double time=message.optDouble("time",0);
@@ -107,16 +103,13 @@ public final class PlaybackService extends Service {
         },"flowview");
     }
     private static void disconnectController(){
+        cancelPipTransition();
         if(browser!=null&&controller!=null)browser.getWebExtensionController().setMessageDelegate(controller,null,"flowview");
-        if(port!=null){port.setDelegate(null);port.disconnect();port=null;}controller=null;pendingTransport=null;recovery.cancel();
+        if(port!=null){port.setDelegate(null);port.disconnect();port=null;}controller=null;pendingTransport=null;
     }
-    static void cancelPipTransition(){recovery.cancel();}
-    static void beginPipTransition(){
-        int token=recovery.begin(SystemClock.elapsedRealtime(),playing);note("PiP transition, playing="+playing);
-        for(long delay:new long[]{250,800,1600})handler.postDelayed(()->{
-            if(recovery.takeAttempt(token,SystemClock.elapsedRealtime(),playing)){note("PiP resume");if(instance!=null)instance.playInternal();}
-        },delay);
-    }
+    // The page owns bounded recovery so a retry cannot resume a different video.
+    static void cancelPipTransition(){command("cancelPlaybackRecovery");}
+    static void beginPipTransition(){note("PiP transition, playing="+playing);command("preparePip");}
 
     static GeckoSession retainedSession(){return browser!=null&&browser.isOpen()?browser:null;}
     static String retainedUrl(){return pageUrl;}
@@ -184,9 +177,9 @@ public final class PlaybackService extends Service {
         }
         pause();stopRunning();disconnectController();browser=null;engine=null;return false;
     }
-    static void pause(){recovery.cancel();pendingTransport="pause";command("pause");if(engine!=null)engine.pause();state(false);}
+    static void pause(){cancelPipTransition();pendingTransport="pause";command("pause");if(engine!=null)engine.pause();state(false);}
     static void stop(){pause();stopRunning();}
-    private void play(){recovery.cancel();resumeAfterFocus=false;playInternal();}
+    private void play(){cancelPipTransition();resumeAfterFocus=false;playInternal();}
     private boolean acquireFocus(){
         if(hasFocus)return true;
         hasFocus=audio.requestAudioFocus(focus)==AudioManager.AUDIOFOCUS_REQUEST_GRANTED;

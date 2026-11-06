@@ -168,3 +168,12 @@ test('resize recovery is connected to page resize and native pause cancels it',a
   assert.equal(f.v.paused,true);assert.equal(f.plays(),1);
  }finally{f.close();}
 });
+
+test('PiP recovers a pause caused by exiting native fullscreen on the same video',async()=>{
+ const f=fixture();try{
+  f.nativeFull();f.w.document.exitFullscreen=()=>{f.v.pause();return Promise.resolve();};
+  f.send({command:'preparePip'});f.send({command:'presentation',mode:'pip'});
+  await new Promise(r=>setTimeout(r,180));assert.equal(f.v.paused,false);assert.equal(f.plays(),1);assert.equal(f.v.currentTime,53);
+  f.send({command:'pause'});await new Promise(r=>setTimeout(r,500));assert.equal(f.v.paused,true);assert.equal(f.plays(),1);
+ }finally{f.close();}
+});

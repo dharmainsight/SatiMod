@@ -32,3 +32,25 @@ test('navigation, video replacement, end and teardown invalidate the resize snap
 test('home and Shorts keep their own autoplay behavior',()=>{
  for(const url of ['https://m.youtube.com/','https://m.youtube.com/shorts/abc']){const f=fixture();f.url(url);f.recovery.resize();f.v.paused=true;f.tick(2000);assert.equal(f.plays(),0);}
 });
+
+test('PiP captures playback before fullscreen exit and recovers a late pause',()=>{
+ const f=fixture();f.recovery.transition();f.tick(1300);f.v.paused=true;f.tick(500);assert.equal(f.plays(),1);assert.equal(f.v.currentTime,53);
+ f.v.paused=true;f.tick(1000);assert.equal(f.plays(),1);
+});
+test('PiP extends a pending resize snapshot without losing play intent or retry budget',()=>{
+ const f=fixture();f.recovery.resize();f.v.paused=true;f.tick(120);f.recovery.transition();f.v.paused=true;f.tick(120);assert.equal(f.plays(),2);
+ f.v.paused=true;f.recovery.transition();f.recovery.resize();f.tick(2200);assert.equal(f.plays(),2);
+});
+test('PiP respects manual pause, source changes, navigation, replacement and cancellation',()=>{
+ for(const change of [f=>f.recovery.cancel(),f=>f.v.currentSrc='blob:next',f=>f.url('https://m.youtube.com/watch?v=other'),f=>f.replace()]){
+  const f=fixture();f.recovery.transition();f.v.paused=true;change(f);f.tick(2200);assert.equal(f.plays(),0);
+ }
+ const paused=fixture();paused.v.paused=true;paused.recovery.transition();paused.tick(2200);assert.equal(paused.plays(),0);
+});
+
+test('a replacement source cannot inherit a resize snapshot when PiP starts',()=>{
+ const f=fixture();f.recovery.resize();f.v.paused=true;f.v.currentSrc='blob:new';f.recovery.transition();f.tick(2200);assert.equal(f.plays(),0);
+});
+test('Shorts resize does not arm recovery or erase an explicit PiP transition',()=>{
+ const f=fixture();f.url('https://m.youtube.com/shorts/abc');f.recovery.transition();f.v.paused=true;f.recovery.resize();f.tick(120);assert.equal(f.plays(),1);
+});

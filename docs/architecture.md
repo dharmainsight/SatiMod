@@ -5,7 +5,7 @@
 | `app/src/main/java/jp/flowview/android/MainActivity.java` | 画面、ナビゲーション、拡張管理、全画面・PiPへの接続 |
 | `PlaybackService.java` | GeckoViewのセッション保持、バックグラウンド再生、通知・MediaSession |
 | `PresentationState.java` / `PresentationProtocol.java` | 縦画面・全画面・PiPの状態とリビジョン管理 |
-| `FullscreenSwipe.java` / `PlaybackRecovery.java` | ジェスチャー判定、再生復帰 |
+| `FullscreenSwipe.java` | ジェスチャー判定 |
 | `MusicPanel.java` | キーとテンポの操作パネル |
 | `AddonCatalog.java` | Mozilla Add-onsの検索結果の読み取り |
 | `FlowUi.java` / `FlowIcon.java` | 共通UIとベクターアイコン |
@@ -21,11 +21,11 @@ Android側の表示状態を `PresentationState` で管理し、リビジョン�
 
 全画面中の下スワイプはAndroid側が判定し、リビジョン付きの `fullscreenDrag` で既存プレーヤーにCSS変形を適用します。移動中は表示状態を変更せず、上端36dpまたはシステムバー領域の大きい方を除外します。80dp以上引いた状態で指を離すと180msの収束後に縦画面へ戻ります。短い操作・引き戻し・複数指・キャンセル・フォーカス喪失・回転では切り替えません。動画ノードとGeckoViewの描画サーフェスは維持します。
 
-分割時は向きをウィンドウに任せ、高さ540dp未満でアプリのヘッダーを省略します。モバイルYouTubeの通常動画ではWeb表示領域が420px未満になるとプレーヤー高を領域内に収めます。`viewport-playback.js` はリサイズ直前の再生状態を保持し、同じ動画・同じURLだけを1.2秒以内、最大2回復帰します。タッチ・キー・クリック・ネイティブの再生/停止命令・ページ離脱は復帰をキャンセルします。音声フォーカス喪失による `pause` もこの経路に含みます。
+分割時は向きをウィンドウに任せ、高さ540dp未満でアプリのヘッダーを省略します。モバイルYouTubeの通常動画ではWeb表示領域が420px未満になるとプレーヤー高を領域内に収めます。`viewport-playback.js` はリサイズ直前の再生状態を保持し、同じ動画ノード・URL・音源だけを1.2秒以内、最大2回復帰します。全画面・PiPの表示変更では、DOM全画面解除より先に同じ復帰処理を準備し、2.2秒以内に制限します。リサイズと表示変更の試行回数は共有し、Android側から別途動画を選び直して再生するタイマーは持ちません。タッチ・キー・クリック・ネイティブの再生/停止命令・ページ離脱は復帰をキャンセルします。音声フォーカス喪失による `pause` もこの経路に含みます。
 
 ## 音楽
 
-`MusicPanel` → `PlaybackService` → `content.js` → `music-engine.js` の順で操作が届きます。テンポは動画の再生速度を使い、移調のときに音声処理を接続します。`music-worklet-source.js` がAudioWorklet方式、`music-compat.js` が互換方式です。SoundTouchJS本体とライセンスは `third_party/soundtouch/` にあります。
+`MusicPanel` → `PlaybackService` → `content.js` → `music-engine.js` の順で操作が届きます。Music Studioは既定で有効ですが、操作するまで動画の速度や音声経路には触れません。初回のキー変更は現在の再生速度を引き継ぎます。テンポは動画の再生速度を使い、移調のときに音声処理を接続します。パネルはGeckoViewと同じ画面内の下部に配置し、高さを表示領域の45%・最大360dpに制限します。外側のページ操作を遮らず、閉じる・戻る・全画面/PiP移行で閉じます。`music-worklet-source.js` がAudioWorklet方式、`music-compat.js` が互換方式です。SoundTouchJS本体とライセンスは `third_party/soundtouch/` にあります。
 
 ## 更新互換性
 
