@@ -23,7 +23,7 @@ JavaScript試験、Android単体試験・Lint・ビルドが通った後、Secre
 公開後の固定ダウンロード先：
 `https://github.com/dharmainsight/SatiMod/releases/latest/download/SatiMod-arm64.apk`
 
-このURLは最初の公開が成功するまでは使えない。利用者へ渡す前に実在するリリースとAPKを確認する。
+2026-11-10に初回公開成功。利用者へ渡す前に最新版のリリースとAPKの実在を確認する。
 
 ## 作業を引き継ぐ場合
 
@@ -34,4 +34,8 @@ JavaScript試験、Android単体試験・Lint・ビルドが通った後、Secre
 
 ## 現在の到達点
 
-新しい鍵を作成・バックアップ済み。PR #8・#9をマージし、自動ビルド・署名・検証・公開の設定をmainへ反映。2026-11-09のActions run 42615943190（ソース891b2c5c084faa58128b2679e069f894f9cdbd22）でJavaScript 60件、Android単体試験・Lint・リリースAPKビルドに成功。署名ステップは `SATIMOD_SIGNING_JSON` 未登録で停止した。署名・公開・Pixel動作は未確認。GitHub Secrets登録後、この失敗ジョブを再実行して署名・公開を確認する。設定は1件のみで、鍵は再生成しない。従来の0.3.7復旧版とのソース一致は未確認であり、新規インストールでも起動確認が必要。
+2026-11-10（日本時間）、[v0.4.4](https://github.com/dharmainsight/SatiMod/releases/tag/v0.4.4)を公開済み。versionCode 1004、ソース `c4fd1c2bc2e444cfb56dc864425a0495a53b0c70`、[Actions run 42718669925](https://github.com/dharmainsight/SatiMod/actions/runs/42718669925)。JavaScript 60件、Android単体試験・Lint・ビルド、固定証明書との一致、APK署名・アプリID・版・ABI・非デバッグ・16KiB ZIP整列、Releases公開まで成功。署名鍵の初回登録は完了しており、再登録・再生成は不要。
+
+APK SHA-256: `249a0428c1bec874498508b2f032a9048f1fa0497998995503b782e1b9cb79b1`。
+
+利用者にはAPKをダウンロード後、初回のみ旧署名版を削除してインストールするよう案内する。以後は同じ鍵の更新APKを開いて上書きできる。Pixel実機での起動・イコライザ・PiPは未確認。従来0.3.7復旧版とのソース一致も未確認。
