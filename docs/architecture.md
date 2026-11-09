@@ -6,7 +6,7 @@
 | `PlaybackService.java` | GeckoViewのセッション保持、バックグラウンド再生、通知・MediaSession |
 | `PresentationState.java` / `PresentationProtocol.java` | 縦画面・全画面・PiPの状態とリビジョン管理 |
 | `FullscreenSwipe.java` | ジェスチャー判定 |
-| `MusicPanel.java` | キーとテンポの操作パネル |
+| `MusicPanel.java` | キー・テンポ・イコライザの操作パネル |
 | `AddonCatalog.java` | Mozilla Add-onsの検索結果の読み取り |
 | `FlowUi.java` / `FlowIcon.java` | 共通UIとベクターアイコン |
 | `app/src/main/assets/controller/` | YouTubeページに接続する内蔵WebExtension |
@@ -30,3 +30,9 @@ Android側の表示状態を `PresentationState` で管理し、リビジョン�
 ## 更新互換性
 
 表示名はSatiModです。アプリID、Javaパッケージ、設定の保存名、WebExtension ID、内部メッセージ名に残る `flowview` / `FlowView` は互換性を保つ内部識別子です。表示名の変更だけを目的とした一括置換は行わないでください。
+
+## イコライザ
+
+音楽の `eq` 命令は5整数（各−12〜+12 dB）を受け取り、状態の `eq` 配列をパネルへ返します。60 / 230 / 910 / 3600 / 14000 Hz、Q=1のpeakingフィルターを、既存MediaElementSourceと移調ノードの後段に接続します。移調0では移調ノードを迂回し、全帯域0ではフィルターを迂回します。ソースは動画ノードごとに再利用します。正のゲインの合計をプリアンプで減衰してヘッドルームを確保します。音源のピークによって音割れを完全には保証できません。
+
+キー・テンポのリセットはEQを維持し、フラット操作はEQだけを戻します。パネルの開閉では状態を維持し、ページ再読み込みでは初期化します。動画ノード切替では設定を引き継ぎます。保護音源・音声拡張の競合による制限は移調と共通です。
