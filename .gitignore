@@ -21,3 +21,5 @@ node_modules/
 *.iml
 captures/
 .rsync-tmp/
+dist/
+__pycache__/
