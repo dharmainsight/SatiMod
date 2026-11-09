@@ -1,5 +1,17 @@
 # 検証状況
 
+## SatiMod 0.4.4 — 2026-11-10（日本時間）
+
+[公開APK](https://github.com/dharmainsight/SatiMod/releases/download/v0.4.4/SatiMod-arm64.apk)、versionCode 1004。ソース `c4fd1c2bc2e444cfb56dc864425a0495a53b0c70`、[Actions run 42718669925](https://github.com/dharmainsight/SatiMod/actions/runs/42718669925) 成功。
+
+- JavaScript 60件、Android単体試験・Lint・リリースAPKビルドに成功。
+- APK署名、固定証明書のSHA-256、アプリID、versionCode/name、arm64、非デバッグ、16KiB ZIP整列を確認して公開。
+- 署名時のパスワードファイル共有によるEOF、Build Tools 37の `V3.0 Signer:` 表示による証明書抽出失敗を修正。署名鍵は変更していない。
+- Pixel実機での起動・再生・イコライザ・PiPは未実施。初回だけ旧署名版の削除が必要で、端末内データが消える。次版以降は同じ署名で上書き更新する。
+
+署名とAPKのハッシュはReleaseの `release.json`・`SHA256SUMS.txt`、運用は[更新手順](updates.md)に記録。
+
+
 ## 0.4系の自動配布 — 2026-11-09
 
 [Actions run 42615943190](https://github.com/dharmainsight/SatiMod/actions/runs/42615943190)、対象ソース `891b2c5c084faa58128b2679e069f894f9cdbd22`。
