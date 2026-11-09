@@ -46,7 +46,9 @@ def main():
         run([build_tools/'zipalign', '-P', '16', '-f', '4', unsigned, aligned])
         run([build_tools/'apksigner', 'sign', '--ks', key, '--ks-key-alias', secret['alias'], '--ks-pass', f'file:{password_file}', '--key-pass', f'file:{key_password_file}', '--out', apk, aligned])
         verification = run([build_tools/'apksigner', 'verify', '--verbose', '--print-certs', apk])
-        assert re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-fA-F]+)', verification).group(1).lower() == expected_cert
+        print(verification)  # Public certificates only; keep tool diagnostics in the build log.
+        digests = re.findall(r'certificate SHA-256 digest:\s*([0-9a-fA-F]{64})\b', verification)
+        assert digests and all(d.lower() == expected_cert for d in digests), 'APK certificate mismatch or missing certificate digest'
         run([build_tools/'zipalign', '-c', '-P', '16', '4', apk])
     badging = run([build_tools/'aapt2', 'dump', 'badging', apk])
     assert "package: name='jp.flowview.android'" in badging
