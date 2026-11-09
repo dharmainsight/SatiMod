@@ -22,7 +22,7 @@ concurrency:
 jobs:
   release:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:
       contents: write
@@ -45,7 +45,7 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund && npm test
       - name: Android SDK
         run: |
-          sdkmanager 'platforms;android-37.2' 'build-tools;37.0.0'
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-37.2' 'build-tools;37.0.0'
       - name: Android tests, lint and APK
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintRelease :app:assembleRelease -PreleaseVersionCode="$RELEASE_CODE" -PreleaseVersionName="$RELEASE_NAME"
       - name: Sign and verify
