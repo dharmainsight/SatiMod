@@ -36,12 +36,15 @@ def main():
         temp = Path(temp); key = temp / 'release.p12'
         key.write_bytes(base64.b64decode(secret['keystore_base64'], validate=True)); key.chmod(0o600)
         password_file = temp / 'password'
-        password_file.write_text(secret['password']); password_file.chmod(0o600)
+        password_file.write_text(secret['password'] + '\n'); password_file.chmod(0o600)
+        # apksigner consumes successive lines when the same password file is reused.
+        key_password_file = temp / 'key-password'
+        key_password_file.write_text(secret['password'] + '\n'); key_password_file.chmod(0o600)
         certificate = subprocess.check_output(['keytool', '-exportcert', '-keystore', str(key), '-alias', secret['alias'], '-storepass:file', str(password_file)])
         assert hashlib.sha256(certificate).hexdigest() == expected_cert, 'Signing key mismatch: do not rotate the release key.'
         aligned = temp / 'aligned.apk'
         run([build_tools/'zipalign', '-P', '16', '-f', '4', unsigned, aligned])
-        run([build_tools/'apksigner', 'sign', '--ks', key, '--ks-key-alias', secret['alias'], '--ks-pass', f'file:{password_file}', '--key-pass', f'file:{password_file}', '--out', apk, aligned])
+        run([build_tools/'apksigner', 'sign', '--ks', key, '--ks-key-alias', secret['alias'], '--ks-pass', f'file:{password_file}', '--key-pass', f'file:{key_password_file}', '--out', apk, aligned])
         verification = run([build_tools/'apksigner', 'verify', '--verbose', '--print-certs', apk])
         assert re.search(r'Signer #1 certificate SHA-256 digest: ([0-9a-fA-F]+)', verification).group(1).lower() == expected_cert
         run([build_tools/'zipalign', '-c', '-P', '16', '4', apk])
