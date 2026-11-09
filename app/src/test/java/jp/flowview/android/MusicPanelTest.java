@@ -12,6 +12,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import org.json.JSONObject;
+import org.json.JSONArray;
+import com.google.android.material.slider.Slider;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
@@ -48,6 +50,9 @@ public class MusicPanelTest {
             assertTrue(panel.isShowing());assertEquals("enable",commands.get(0).optString("action"));assertTrue(commands.get(0).optBoolean("value"));
             View plus=described(host.column,"キーを半音上げる");assertNotNull(plus);assertNull(described(host.column,"キー・テンポの操作を有効にする"));
             panel.update(new JSONObject().put("enabled",true).put("pitch",-2).put("tempo",.85));assertTrue(plus.isEnabled());plus.performClick();assertEquals("pitch",commands.get(commands.size()-1).optString("action"));assertEquals(-1,commands.get(commands.size()-1).optInt("value"));
+            panel.update(new JSONObject().put("enabled",true).put("pitch",-2).put("tempo",.85).put("eq",new JSONArray("[4,2,0,-3,1]")));
+            Slider bass=(Slider)described(host.column,"60 Hzの音量、マイナス12からプラス12デシベル");assertNotNull(bass);assertEquals(4f,bass.getValue(),0f);
+            int beforeBinding=commands.size();panel.update(new JSONObject().put("enabled",true).put("eq",new JSONArray("[0,0,0,0,0]")));assertEquals(beforeBinding,commands.size());assertEquals(0f,bass.getValue(),0f);
             Shadows.shadowOf(Looper.getMainLooper()).idle();layout(host.column,860);
             assertSame(host.page,host.column.getChildAt(0));assertTrue(host.page.getHeight()>400);
             int[] actions={MotionEvent.ACTION_DOWN,MotionEvent.ACTION_MOVE,MotionEvent.ACTION_MOVE,MotionEvent.ACTION_UP};
