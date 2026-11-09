@@ -22,7 +22,7 @@ Pixel 9aでのYouTube視聴を起点に開発しています。GeckoViewを使�
 
 ## 開発・配布状況
 
-現在のソースは **0.3.4 / versionCode 9** です。更新用APK・試験の状況は[検証状況](docs/verification.md)を参照してください。自分で試す場合は[ビルド手順](docs/build.md)からAPKを作成できます。
+0.4系から固定署名鍵とGitHub Actionsによる更新配布へ移行します（初回公開は未確認）。[初回設定・更新手順](docs/updates.md)を参照してください。更新用APK・試験の状況は[検証状況](docs/verification.md)を参照してください。自分で試す場合は[ビルド手順](docs/build.md)からAPKを作成できます。
 
 FlowView 0.3.1を引き継いでいます。既存インストールとの更新互換性を保つため、アプリIDは `jp.flowview.android` のままです。上書き更新には同じ署名鍵が必要です。
 
