@@ -1,5 +1,17 @@
 # 検証状況
 
+## 0.4系の自動配布 — 2026-11-09
+
+[Actions run 42615943190](https://github.com/dharmainsight/SatiMod/actions/runs/42615943190)、対象ソース `891b2c5c084faa58128b2679e069f894f9cdbd22`。
+
+- JavaScript：60件成功。
+- Android：`:app:testDebugUnitTest :app:lintRelease :app:assembleRelease` が `BUILD SUCCESSFUL`。イコライザのパネル試験を含む。
+- 署名・公開：`SATIMOD_SIGNING_JSON` 未登録のため停止。未署名APKのビルド成功を、更新APKの配布完了として扱わない。
+- 次の作業：利用者が秘密情報を1件登録→上記失敗ジョブを再実行→署名とAPK公開の成功を確認→実在するダウンロードリンクを案内。
+- Pixel実機：未実施。新しい署名版の初回のみ旧版削除が必要。APKが公開される前に削除しない。
+
+詳細は[更新手順](updates.md)。
+
 ## イコライザ追加 — 2026-11-09（PR段階）
 
 5帯域の音質調整、フラット復帰、キー・テンポとの併用を追加。バージョンは変更していません。
