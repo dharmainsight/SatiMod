@@ -1,5 +1,12 @@
 # 検証状況
 
+## EQの増減方向修正（PR段階）
+
+- 報告：プラスとマイナスで挙動が逆。コードでは符号の反転はなく、正の帯域ゲインを合計して全体から減衰する処理を確認。上げるほど他帯域と全体音量が下がるため、この処理を削除し、EQ後段のピーク圧縮に置換。実機での原因確定と聴感確認は未実施。
+- `npm ci --ignore-scripts --no-audit --no-fund`、`npm test`：60件成功。音声経路・ピーク圧縮の設定・フラット復帰・ソース再利用を模擬AudioContextで確認。
+- `scripts/verify-equalizer-audio.cjs`：実エンジンとOfflineAudioContextで5帯域それぞれの−12/−6/0/+6/+12 dB、全帯域ブースト、無効化、定常音のピークを検証するスクリプトを追加。ローカルはChromiumのsocket作成が環境側で拒否され、実行未完了。PRのAudio regression testsで実行する。Playwright 1.62.1と対応Chromiumが必要。単体試験と合成音の結果をPixel実機の結果と区別する。
+- Androidコード変更なし。APKビルド・公開・Pixel 9aの確認は未実施。次の確認：ブラウザー検証の成功後、同じ音源・端末音量で各帯域を0→+6→0→−6と動かし、キー/テンポ併用、フラット復帰、音割れを確認。
+
 ## SatiMod 0.4.4 — 2026-11-10（日本時間）
 
 [公開APK](https://github.com/dharmainsight/SatiMod/releases/download/v0.4.4/SatiMod-arm64.apk)、versionCode 1004。ソース `c4fd1c2bc2e444cfb56dc864425a0495a53b0c70`、[Actions run 42718669925](https://github.com/dharmainsight/SatiMod/actions/runs/42718669925) 成功。
