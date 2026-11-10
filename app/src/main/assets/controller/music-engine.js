@@ -9,7 +9,7 @@
  function deadline(promise,ms,code){return new Promise((resolve,reject)=>{const id=setTimeout(()=>reject(new Error(code)),ms);Promise.resolve(promise).then(v=>{clearTimeout(id);resolve(v);},e=>{clearTimeout(id);reject(e);});});}
  function dry(r,restore=false){
   if(!r)return;
-  if(r.source){r.source.disconnect();r.node?.disconnect();r.preamp?.disconnect();r.filters?.forEach(f=>f.disconnect());r.source.connect(ctx.destination);}
+  if(r.source){r.source.disconnect();r.node?.disconnect();r.limiter?.disconnect();r.filters?.forEach(f=>f.disconnect());r.source.connect(ctx.destination);}
   r.wet=false;r.node?.flowReset?.();
   r.video.preservesPitch=restore?r.savedPitch:true;
   const rate=restore?r.savedRate:tempo;if(r.video.playbackRate!==rate)r.video.playbackRate=rate;
@@ -25,15 +25,14 @@
   if(!record||!enabled)return;const r=record,wet=pitch!==0;
   if(wet&&(!r.source||!r.node))throw new Error('AudioUnavailable');
   if(r.source){
-   r.source.disconnect();r.node?.disconnect();r.preamp?.disconnect();r.filters?.forEach(f=>f.disconnect());
+   r.source.disconnect();r.node?.disconnect();r.limiter?.disconnect();r.filters?.forEach(f=>f.disconnect());
    let tail=r.source;
    if(wet){if(!r.wet)r.node.flowReset?.();tail.connect(r.node);tail=r.node;}
    if(eq.some(g=>g!==0)){
-    if(!r.filters){r.preamp=ctx.createGain();r.filters=frequencies.map(hz=>{const f=ctx.createBiquadFilter();f.type='peaking';f.frequency.value=hz;f.Q.value=1;return f;});}
-    // Reserve headroom for overlapping boosted bands.
-    r.preamp.gain.value=Math.pow(10,-eq.reduce((sum,g)=>sum+Math.max(0,g),0)/20);
-    tail.connect(r.preamp);tail=r.preamp;
+    if(!r.filters){r.limiter=ctx.createDynamicsCompressor();r.limiter.threshold.value=-1;r.limiter.knee.value=0;r.limiter.ratio.value=20;r.limiter.attack.value=0;r.limiter.release.value=.1;r.filters=frequencies.map(hz=>{const f=ctx.createBiquadFilter();f.type='peaking';f.frequency.value=hz;f.Q.value=1;return f;});}
     r.filters.forEach((f,i)=>{f.gain.value=eq[i];tail.connect(f);tail=f;});
+    // Control peaks after EQ; never subtract the slider gains from all bands.
+    tail.connect(r.limiter);tail=r.limiter;
    }
    tail.connect(ctx.destination);
   }

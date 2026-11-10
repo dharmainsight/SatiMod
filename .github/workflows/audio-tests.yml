@@ -1,0 +1,30 @@
+name: Audio regression tests
+on:
+  pull_request:
+    paths:
+      - 'app/src/main/assets/controller/music*.js'
+      - 'tests/music*.cjs'
+      - 'scripts/verify-equalizer-audio.cjs'
+      - 'package*.json'
+      - '.github/workflows/audio-tests.yml'
+permissions:
+  contents: read
+concurrency:
+  group: audio-tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  audio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test
+      - run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.62.1
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-equalizer-audio.cjs
