@@ -13,6 +13,7 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import org.json.JSONObject;
 import org.json.JSONArray;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.slider.Slider;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -68,4 +69,37 @@ public class MusicPanelTest {
             assertEquals("observe",commands.get(commands.size()-1).optString("action"));assertFalse(commands.get(commands.size()-1).optBoolean("value"));
         }
     }
+    @Test public void transportControlsStayAboveScrollableMusicSettings() throws Exception {
+        try(var controller=Robolectric.buildActivity(Host.class).setup()){
+            Host host=controller.get();layout(host.column,860);
+            ArrayList<String> actions=new ArrayList<>();int[] fullscreens={0},pips={0};
+            MusicPanel panel=new MusicPanel(host,c->{},actions::add,()->fullscreens[0]++,()->pips[0]++);
+            panel.show(host.column);
+            LinearLayout studio=(LinearLayout)host.column.getChildAt(1);
+            LinearLayout transport=(LinearLayout)studio.getChildAt(1);
+            assertEquals(5,transport.getChildCount());
+            MaterialButton back=(MaterialButton)transport.getChildAt(0);
+            MaterialButton play=(MaterialButton)transport.getChildAt(1);
+            MaterialButton forward=(MaterialButton)transport.getChildAt(2);
+            assertEquals("−10秒",back.getText().toString());
+            assertEquals("+10秒",forward.getText().toString());
+            assertSame(transport,described(studio,"再生").getParent());
+            assertSame(transport,described(studio,"全画面").getParent());
+            assertSame(transport,described(studio,"小窓").getParent());
+            ScrollView settings=(ScrollView)studio.getChildAt(3);
+            assertNotNull(described(settings,"キーを半音上げる"));
+            assertNotNull(described(settings,"60 Hzの音量、マイナス12からプラス12デシベル"));
+            assertNull("Playback stays visible when settings scroll",described(settings,"再生"));
+            back.performClick();forward.performClick();play.performClick();
+            assertArrayEquals(new String[]{"back10","next10","playpause"},actions.toArray(new String[0]));
+            panel.playback(true);
+            assertSame(transport,described(studio,"一時停止").getParent());
+            described(studio,"全画面").performClick();
+            assertEquals(1,fullscreens[0]);assertFalse(panel.isShowing());
+            panel.show(host.column);
+            described(host.column,"小窓").performClick();
+            assertEquals(1,pips[0]);assertFalse(panel.isShowing());
+        }
+    }
+
 }
