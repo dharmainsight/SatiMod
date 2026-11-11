@@ -17,6 +17,7 @@ final class FlowIcon extends Drawable {
             case "back":line(c,14,5,7,12,14,19);break;
             case "forward":line(c,10,5,17,12,10,19);break;
             case "refresh":c.drawArc(4,4,20,20,45,280,false,p);line(c,20,4,20,10,14,10);break;
+            case "analytics":line(c,4,3,4,21,22,21);line(c,9,17,9,12);line(c,14,17,14,6);line(c,19,17,19,9);break;
             case "search":c.drawCircle(10.5f,10.5f,6.5f,p);line(c,16,16,21,21);break;
             case "close":line(c,6,6,18,18);line(c,18,6,6,18);break;
             case "plus":line(c,5,12,19,12);line(c,12,5,12,19);break;
