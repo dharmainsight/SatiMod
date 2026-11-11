@@ -25,7 +25,7 @@ Android側の表示状態を `PresentationState` で管理し、リビジョン�
 
 ## 音楽
 
-`MusicPanel` → `PlaybackService` → `content.js` → `music-engine.js` の順で操作が届きます。Music Studioは既定で有効ですが、操作するまで動画の速度や音声経路には触れません。初回のキー変更は現在の再生速度を引き継ぎます。テンポは動画の再生速度を使い、移調のときに音声処理を接続します。パネルはGeckoViewと同じ画面内の下部に配置し、高さを表示領域の45%・最大360dpに制限します。外側のページ操作を遮らず、閉じる・戻る・全画面/PiP移行で閉じます。`music-worklet-source.js` がAudioWorklet方式、`music-compat.js` が互換方式です。SoundTouchJS本体とライセンスは `third_party/soundtouch/` にあります。
+`MusicPanel` → `PlaybackService` → `content.js` → `music-engine.js` の順で操作が届きます。Music Studioは既定で有効ですが、操作するまで動画の速度や音声経路には触れません。初回のキー変更は現在の再生速度を引き継ぎます。テンポは動画の再生速度を使い、移調のときに音声処理を接続します。パネルはGeckoViewと同じ画面内の下部に配置し、高さを表示領域の45%・最大360dpに制限します。見出し直下に再生・10秒送り戻し・全画面・PiPの操作列を固定し、キー・テンポ・イコライザは独立したスクロール領域に表示します。外側のページ操作を遮らず、閉じる・戻る・全画面/PiP移行で閉じます。`music-worklet-source.js` がAudioWorklet方式、`music-compat.js` が互換方式です。SoundTouchJS本体とライセンスは `third_party/soundtouch/` にあります。
 
 ## 更新互換性
 

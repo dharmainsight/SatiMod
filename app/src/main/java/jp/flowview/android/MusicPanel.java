@@ -29,6 +29,9 @@ final class MusicPanel {
         parent=host;panel=ui.column();panel.setBackground(ui.shape(FlowUi.SURFACE,24));panel.setPadding(ui.dp(12),ui.dp(4),ui.dp(12),ui.dp(8));
         LinearLayout heading=ui.row();heading.addView(ui.title("Music Studio",20),new LinearLayout.LayoutParams(0,-2,1));
         heading.addView(ui.icon("close","音楽パネルを閉じる",this::dismiss,false),new LinearLayout.LayoutParams(ui.dp(48),ui.dp(48)));panel.addView(heading);
+        LinearLayout player=ui.row();MaterialButton back=ui.button("−10秒",null,()->transport.accept("back10"),false),next=ui.button("+10秒",null,()->transport.accept("next10"),false);
+        play=ui.icon(playing?"pause":"play",playing?"一時停止":"再生",()->transport.accept("playpause"),true);
+        for(MaterialButton b:new MaterialButton[]{back,play,next,ui.icon("full","全画面",()->{dismiss();fullscreen.run();},false),ui.icon("pip","小窓",()->{dismiss();pip.run();},false)}){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,ui.dp(52),1);lp.setMargins(ui.dp(2),0,ui.dp(2),0);player.addView(b,lp);}panel.addView(player);ui.gap(panel,8);
         ScrollView scroll=new ScrollView(ui.a);scroll.setFillViewport(false);scroll.setClipToPadding(false);scroll.setVerticalScrollBarEnabled(false);LinearLayout body=ui.column();scroll.addView(body);panel.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         status=ui.text("キー・テンポ・音質を調整できます",12,FlowUi.MUTED);body.addView(status);ui.gap(body,8);
         LinearLayout controls=ui.card();controls.setPadding(ui.dp(12),ui.dp(8),ui.dp(12),ui.dp(8));controls.addView(ui.text("キー / 半音",12,FlowUi.MUTED));ui.gap(controls,4);
@@ -50,9 +53,6 @@ final class MusicPanel {
             row.addView(slider,new LinearLayout.LayoutParams(0,ui.dp(48),1));bandValues[i]=ui.text("0 dB",12,FlowUi.INK);row.addView(bandValues[i],new LinearLayout.LayoutParams(ui.dp(48),-2));equalizer.addView(row);
         }
         equalizer.addView(ui.button("フラットに戻す","refresh",()->command("eq",equalizerValues(new int[5])),false));body.addView(equalizer);ui.gap(body,12);
-        LinearLayout player=ui.row();MaterialButton back=ui.button("−10秒",null,()->transport.accept("back10"),false),next=ui.button("+10秒",null,()->transport.accept("next10"),false);
-        play=ui.icon(playing?"pause":"play",playing?"一時停止":"再生",()->transport.accept("playpause"),true);
-        for(MaterialButton b:new MaterialButton[]{back,play,next,ui.icon("full","全画面",()->{dismiss();fullscreen.run();},false),ui.icon("pip","小窓",()->{dismiss();pip.run();},false)}){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,ui.dp(52),1);lp.setMargins(ui.dp(2),0,ui.dp(2),0);player.addView(b,lp);}body.addView(player);ui.gap(body,12);
         body.addView(ui.button("原曲のキー・テンポに戻す","refresh",()->command("reset",null),false),new LinearLayout.LayoutParams(-1,ui.dp(48)));ui.gap(body,8);
         parent.addView(panel,Math.max(0,parent.getChildCount()-1),new LinearLayout.LayoutParams(-1,height()));
         parent.addOnLayoutChangeListener(sizeChanged);command("enable",true);command("query",null);
