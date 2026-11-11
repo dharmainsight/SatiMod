@@ -71,6 +71,10 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private static final String CONTROL_ID = "controls@flowview.local";
     private static final int BG=FlowUi.BG,PANEL=FlowUi.CARD,MINT=FlowUi.MINT;
     private FlowUi ui;
+    private UsageTracker usage;
+    private final android.content.BroadcastReceiver usageScreenReceiver = new android.content.BroadcastReceiver() {
+        @Override public void onReceive(android.content.Context context, Intent intent) { usage.update(); }
+    };
     private MusicPanel musicPanel;
     private static GeckoRuntime runtime;
     private GeckoSession session;
@@ -101,6 +105,13 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         prefs=getSharedPreferences("flowview",MODE_PRIVATE);
         getWindow().setDecorFitsSystemWindows(false);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        usage = new UsageTracker(this);
+        android.content.IntentFilter screenEvents = new android.content.IntentFilter();
+        screenEvents.addAction(Intent.ACTION_SCREEN_OFF);
+        screenEvents.addAction(Intent.ACTION_SCREEN_ON);
+        screenEvents.addAction(Intent.ACTION_USER_PRESENT);
+        androidx.core.content.ContextCompat.registerReceiver(this, usageScreenReceiver, screenEvents,
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
         createUi();
         if(runtime==null) runtime=GeckoRuntime.create(getApplicationContext(),new GeckoRuntimeSettings.Builder()
                 .remoteDebuggingEnabled(false).consoleOutput(false)
@@ -148,7 +159,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         header=ui.row();header.setPadding(dp(16),dp(6),dp(12),dp(8));header.setBackgroundColor(BG);
         MaterialButton home=ui.icon("play","YouTubeホームへ",()->navigate(HOME_URL),true);home.setCornerRadius(dp(16));header.addView(home,new LinearLayout.LayoutParams(dp(44),dp(44)));
         LinearLayout brand=ui.column();TextView name=ui.title("SatiMod",20);name.setLetterSpacing(0.02f);brand.addView(name);ui.gap(brand,4);address=ui.text("YouTubeブラウザー",11,FlowUi.MUTED);address.setSingleLine(true);address.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);brand.addView(address);brand.setContentDescription("URLを開く");brand.setOnClickListener(v->openInput());
-        LinearLayout.LayoutParams bl=new LinearLayout.LayoutParams(0,-2,1);bl.setMargins(dp(12),0,dp(8),0);header.addView(brand,bl);header.addView(ui.icon("search","YouTubeで検索",this::search,false),new LinearLayout.LayoutParams(dp(48),dp(48)));column.addView(header,new LinearLayout.LayoutParams(-1,dp(64)));
+        LinearLayout.LayoutParams bl=new LinearLayout.LayoutParams(0,-2,1);bl.setMargins(dp(12),0,dp(8),0);header.addView(brand,bl);header.addView(ui.icon("analytics","利用時間の分析",this::showUsage,false),new LinearLayout.LayoutParams(dp(48),dp(48)));column.addView(header,new LinearLayout.LayoutParams(-1,dp(64)));
         progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(100);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(MINT));column.addView(progress,new LinearLayout.LayoutParams(-1,dp(2)));progress.setVisibility(View.INVISIBLE);
         web=new GeckoView(this);web.setOverScrollMode(View.OVER_SCROLL_NEVER);web.setBackgroundColor(BG);column.addView(web,new LinearLayout.LayoutParams(-1,0,1));
         toolbar=ui.row();toolbar.setBackground(ui.shape(FlowUi.SURFACE,26));toolbar.setPadding(dp(5),dp(5),dp(5),dp(5));toolbar.setElevation(dp(4));
@@ -428,7 +439,25 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         new MaterialAlertDialogBuilder(this).setTitle(title).setView(field).setPositiveButton("開く",(d,w)->accept.accept(field.getText().toString().trim())).setNegativeButton("キャンセル",null).show();
     }
     private void openInput(){input("URL または検索語",currentUrl,text->{if(text.startsWith("https://"))navigate(text);else navigate("https://m.youtube.com/results?search_query="+Uri.encode(text));});}
-    private void search(){input("YouTubeで検索","",q->navigate("https://m.youtube.com/results?search_query="+Uri.encode(q)));}
+    private void showUsage(){
+        usage.update();
+        java.time.LocalDate today=java.time.LocalDate.now();
+        FlowUi.Sheet sheet=ui.sheet("利用時間の分析","アプリを画面に表示していた時間",560);
+        ScrollView scroll=new ScrollView(this);
+        LinearLayout body=ui.column();scroll.addView(body);sheet.body.addView(scroll);
+        String[] labels={"一日あたり平均","直近1週間（7日）","直近1ヶ月（30日）","直近1年（365日）"};
+        long[] values={usage.history.average(today),usage.history.total(today,7),usage.history.total(today,30),usage.history.total(today,365)};
+        for(int i=0;i<labels.length;i++){
+            LinearLayout card=ui.card();card.addView(ui.text(labels[i],13,FlowUi.MUTED));ui.gap(card,8);
+            card.addView(ui.title(usageDuration(values[i]),24));body.addView(card);ui.gap(body,10);
+        }
+        body.addView(ui.text("記録開始："+usage.history.firstDay+"\n今日を含む各期間の合計。日平均は記録開始から今日まで（最大365日、未使用日を含む）で計算します。\n小窓・分割画面を含み、画面消灯・ロック中と音声のみの再生は含みません。\n更新前の時間は取得できません。記録は端末内に保存され、アプリの削除で消えます。",12,FlowUi.MUTED));
+        sheet.dialog.show();
+    }
+    static String usageDuration(long millis){
+        long minutes=millis/60_000;
+        return millis==0 ? "0分" : minutes==0 ? "1分未満" : (minutes/60)+"時間 "+(minutes%60)+"分";
+    }
     private void navigate(String url){if(fullscreen)leaveFullScreen();session.loadUri(url);}
     private void back(){
         if(musicPanel.isShowing()){musicPanel.dismiss();return;}
@@ -633,10 +662,12 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         }return url;
     }
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String url=launchUrl(intent);if(url!=null&&session!=null)navigate(url);}
-    @Override protected void onStart(){super.onStart();foreground=true;PlaybackService.setUiForeground(true);if(session!=null)session.setActive(true);updateAwake();updatePipParams();}
+    @Override protected void onStart(){super.onStart();usage.visible(true);foreground=true;PlaybackService.setUiForeground(true);if(session!=null)session.setActive(true);updateAwake();updatePipParams();}
     @Override protected void onResume(){super.onResume();if(session!=null)session.setFocused(true);if(!isInPictureInPictureMode()&&viewing.inPipOrEntering())viewing.leftPip();applyPresentation();}
-    @Override protected void onStop(){super.onStop();resetFullscreenSwipe();foreground=false;PlaybackService.setUiForeground(false);updateAwake();if(session!=null)session.setActive(isInPictureInPictureMode()||viewing.inPipOrEntering());}
+    @Override protected void onStop(){usage.visible(false);super.onStop();resetFullscreenSwipe();foreground=false;PlaybackService.setUiForeground(false);updateAwake();if(session!=null)session.setActive(isInPictureInPictureMode()||viewing.inPipOrEntering());}
     @Override protected void onDestroy(){
+        usage.visible(false);
+        unregisterReceiver(usageScreenReceiver);
         musicPanel.dismiss();
         for(Dialog d:new ArrayList<>(auxiliary))d.dismiss();
         runtime.getWebExtensionController().setPromptDelegate(null);

@@ -1,5 +1,19 @@
 # 検証状況
 
+## 利用時間の分析（PR段階・2026-11-11）
+
+- 右上の虫眼鏡を分析アイコンへ変更し、日平均・7/30/365日合計を表示。通常・全画面・分割・PiPの画面表示時間を端末内に記録する。導入前の履歴は取得しない。
+- `UsageHistoryCheck`：JDK 21のコンパイラをsource/target 17で実行し、13件の検証に成功。二重開始/停止、途中保存、非表示の空白、午前0時の分割、平均の分母、期間境界・保持期限、時刻変更、再起動、夏時間を確認。
+- `./gradlew :app:testDebugUnitTest :app:lintRelease`：Gradle配布物取得が `Network is unreachable` で停止。Android型検査・JUnit・Lint・APKビルドは未実施。
+- 次の確認：マージ時のRelease APKワークフローでAndroid試験とLintを確認。Pixelで通常→全画面→PiP→復帰、分割、画面消灯/ロック解除、音声のみのバックグラウンド、プロセス終了・上書き更新後の保存値を確認する。実機確認は未実施。
+
+単体集計の再検証（JDK 17以上）：
+```sh
+mkdir -p /tmp/satimod-usage-check
+javac -d /tmp/satimod-usage-check app/src/main/java/jp/flowview/android/UsageHistory.java tests/java/UsageHistoryCheck.java
+java -cp /tmp/satimod-usage-check jp.flowview.android.UsageHistoryCheck
+```
+
 ## 音楽操作列の上部固定（PR段階・2026-11-11）
 
 - Music Studioの見出し直下に、−10秒／再生・一時停止／+10秒／全画面／小窓の5ボタンを固定。キー・テンポ・イコライザ・リセットは従来のスクロール領域に残す。再生命令・全画面・PiP処理の接続は変更しない。
