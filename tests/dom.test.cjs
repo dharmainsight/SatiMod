@@ -21,6 +21,19 @@ function swipe(target,x=60,y=220,x2=60,y2=80){touch(target,'touchstart',x,y);clo
  let e=swipe(w.document.querySelector('p'));assert.equal(e.move.defaultPrevented,false);assert.equal(e.end.defaultPrevented,false);assert.equal(fsElement,null);console.log('PASS comment gestures remain untouched');
  e=swipe(w.document.querySelector('button'));assert.equal(e.move.defaultPrevented,false);assert.equal(fsElement,null);console.log('PASS player controls remain untouched');
  const original=v;e=swipe(v);await Promise.resolve();assert.equal(player.hasAttribute('data-flowview-full'),true);assert.equal(v.currentTime,62);assert.equal(w.document.querySelector('video'),original);assert.equal(e.end.defaultPrevented,true);console.log('PASS up swipe enters fullscreen without replacing or seeking video');
+ // Native status uses real media dimensions only when the video occupies a centered contain viewport.
+ const inlineRect=v.getBoundingClientRect;
+ Object.defineProperty(v,'videoWidth',{value:1920});Object.defineProperty(v,'videoHeight',{value:1080});
+ v.getBoundingClientRect=()=>({left:0,top:0,right:w.innerWidth,bottom:w.innerHeight,width:w.innerWidth,height:w.innerHeight});
+ v.style.objectFit='contain';v.style.objectPosition='50% 50%';
+ commands({command:'state'});
+ let geometry=messages.filter(x=>x.type==='fullscreenVideo').at(-1);
+ assert.equal(geometry.width,1920);assert.equal(geometry.height,1080);assert.equal(geometry.revision,revision);
+ v.style.objectFit='cover';commands({command:'state'});
+ geometry=messages.filter(x=>x.type==='fullscreenVideo').at(-1);
+ assert.equal(geometry.width,0);assert.equal(geometry.height,0);
+ v.removeAttribute('style');v.getBoundingClientRect=inlineRect;
+ console.log('PASS fullscreen status geometry requires centered contain video');
  swipe(v,60,70,60,230);assert.equal(fsElement,null);assert.equal(player.hasAttribute('data-flowview-full'),false);assert.equal(v.currentTime,62);console.log('PASS down swipe exits fullscreen and preserves position');
  commands({command:'fullscreen'});assert.equal(player.hasAttribute('data-flowview-full'),true);commands({command:'exit'});assert.equal(player.getAttribute('style'),'position:relative');console.log('PASS native fullscreen restores original inline style');
  commands({command:'seek',delta:10});assert.equal(v.currentTime,72);commands({command:'seek',delta:-10});assert.equal(v.currentTime,62);commands({command:'speed',value:1.5});assert.equal(v.playbackRate,1.5);commands({command:'speed',value:20});assert.equal(v.playbackRate,1.5);console.log('PASS playback commands validate and apply values');
@@ -28,6 +41,6 @@ function swipe(target,x=60,y=220,x2=60,y2=80){touch(target,'touchstart',x,y);clo
  commands({command:'settings',gestures:true});touch(v,'touchstart',60,220,true);clock+=200;touch(v,'touchend',60,80);assert.equal(fsElement,null);console.log('PASS multi-touch does not trigger fullscreen');
  w.history.pushState({},'', '/shorts/test');swipe(v);assert.equal(fsElement,null);console.log('PASS Shorts keeps normal swipe behavior');
  const count=connections;w.dispatchEvent(new w.PageTransitionEvent('pagehide',{persisted:true}));w.dispatchEvent(new w.PageTransitionEvent('pageshow',{persisted:true}));assert.equal(connections,count+1);console.log('PASS back/forward cache reconnects the controller');
- assert.equal(w.location.pathname,'/shorts/test');console.log('10 DOM integration checks passed');
+ assert.equal(w.location.pathname,'/shorts/test');console.log('11 DOM integration checks passed');
  }finally{w.dispatchEvent(new w.PageTransitionEvent('pagehide'));dom.window.close();}
 })().catch(e=>{console.error(e);process.exit(1)});

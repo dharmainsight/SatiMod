@@ -23,7 +23,7 @@
   const viewportPlayback=globalThis.FlowViewportPlayback.create({video,location:()=>location.href,
     onResult:(ok,reason)=>post({type:'viewportRecovery',ok,reason})});
   // Capture before the site's resize handlers can pause the current video.
-  const resized=()=>{viewportPlayback.resize();fitCompactPlayer();};
+  const resized=()=>{viewportPlayback.resize();fitCompactPlayer();reportFullscreenVideo();};
   window.addEventListener('resize',resized,true);
   window.visualViewport?.addEventListener('resize',resized);
   for(const type of ['pointerdown','touchstart','keydown','click'])document.addEventListener(type,e=>{
@@ -76,6 +76,22 @@
   }
   // Observations are diagnostics, never requests. Only explicit input changes native mode.
   function reportFull() { post({type:'fullscreen', value:full(), revision:presentationRevision}); }
+  // Report only a verified, centered contain-fitted viewport. Native overlays never
+  // use guessed dimensions; this is an observation, not a presentation request.
+  function reportFullscreenVideo(){
+    if(requestedMode!=='full'||presentationRevision<0)return;
+    const v=video(),container=fakeFull||document.fullscreenElement;
+    let width=0,height=0;
+    if(v?.isConnected&&container?.isConnected&&(container===v||container.contains(v))&&v.videoWidth>0&&v.videoHeight>0){
+      const r=v.getBoundingClientRect(),style=getComputedStyle(v),vp=window.visualViewport;
+      const fullViewport=Math.abs(r.left)<=2&&Math.abs(r.top)<=2&&Math.abs(r.width-innerWidth)<=2&&Math.abs(r.height-innerHeight)<=2;
+      const unshifted=!vp||(Math.abs(vp.width-innerWidth)<=2&&Math.abs(vp.height-innerHeight)<=2&&Math.abs(vp.offsetLeft)<=2&&Math.abs(vp.offsetTop)<=2);
+      if(fullViewport&&unshifted&&style.objectFit==='contain'&&style.objectPosition==='50% 50%'){
+        width=v.videoWidth;height=v.videoHeight;
+      }
+    }
+    post({type:'fullscreenVideo',revision:presentationRevision,width,height});
+  }
   function requestPresentation(mode) {
     if(presentationRevision<0 || pendingRequest===mode)return;
     pendingRequest=mode;touch=null;lastTap=null;
@@ -143,8 +159,8 @@
         presentationRevision=message.revision;pendingRequest=null;touch=null;lastTap=null;clearDrag();
         {const ok=message.mode==='inline'?(exit(),true):enter(message.mode);
         fitCompactPlayer();
-        post({type:'presentationApplied',mode:message.mode,revision:presentationRevision,ok,error:ok?'':'NoVideo'});}break;
-      case 'state':reportFull();reportMedia();break;
+        post({type:'presentationApplied',mode:message.mode,revision:presentationRevision,ok,error:ok?'':'NoVideo'});reportFullscreenVideo();}break;
+      case 'state':reportFull();reportMedia();reportFullscreenVideo();break;
       case 'cancelGesture':touch=null;lastTap=null;clearDrag();break;
       case 'music':window.postMessage({channel:'flowview-music-command',command:message.data},location.origin);break;
       case 'play':viewportPlayback.cancel();playVideo();break;
@@ -220,6 +236,7 @@
   },true);
   for(const type of ['blur','resize','orientationchange'])window.addEventListener(type,()=>{touch=null;lastTap=null;clearDrag();});
   for(const type of ['play','pause','ended'])document.addEventListener(type,reportMedia,true);
+  for(const type of ['loadedmetadata','resize','emptied'])document.addEventListener(type,reportFullscreenVideo,true);
   function markPlayers() {
     for(const el of document.querySelectorAll('[data-flowview-gesture]')) if(!gestures || isShort())el.removeAttribute('data-flowview-gesture');
     if(requestedMode!=='inline')enter(requestedMode);
@@ -237,6 +254,7 @@
     videoStateTimer=setInterval(()=>{
       if(currentHref!==location.href) { viewportPlayback.cancel();currentHref=location.href; touch=null;lastTap=null;selectedVideo=null;if(location.pathname!=='/watch'&&!isShort()){exit();requestPresentation('inline');}markPlayers(); }
       const v=video();
+      reportFullscreenVideo();
       if(v) {
         const now=Date.now();
         reportMedia();
