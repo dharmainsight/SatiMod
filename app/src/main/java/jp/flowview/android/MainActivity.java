@@ -169,7 +169,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         LinearLayout.LayoutParams dock=new LinearLayout.LayoutParams(-1,dp(70));dock.setMargins(dp(10),dp(8),dp(10),dp(8));column.addView(toolbar,dock);
         root.setOnApplyWindowInsetsListener((v,insets)->{
             Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());Insets ime=insets.getInsets(WindowInsets.Type.ime());
-            if(viewing.videoOnly()||isInPictureInPictureMode())root.setPadding(0,0,0,0);else root.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,ime.bottom));return insets;
+            if(isInPictureInPictureMode())root.setPadding(0,0,0,0);else if(viewing.videoOnly())root.setPadding(bars.left,bars.top,bars.right,0);else root.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,ime.bottom));return insets;
         });setContentView(root);
     }
     private void sendMusic(JSONObject data){
@@ -282,7 +282,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
                     fullscreen?ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE:ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
             if(getRequestedOrientation()!=orientation)setRequestedOrientation(orientation);
             WindowInsetsController bars=getWindow().getInsetsController();
-            if(bars!=null){bars.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);if(fullscreen)bars.hide(WindowInsets.Type.systemBars());else bars.show(WindowInsets.Type.systemBars());}
+            if(bars!=null){bars.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);if(fullscreen){bars.show(WindowInsets.Type.statusBars());bars.hide(WindowInsets.Type.navigationBars());}else bars.show(WindowInsets.Type.systemBars());}
         }
         PlaybackService.setPresentation(viewing.pageMode());root.requestApplyInsets();updatePipParams();
     }
