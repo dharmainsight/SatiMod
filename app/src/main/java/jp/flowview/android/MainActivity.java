@@ -76,6 +76,8 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         @Override public void onReceive(android.content.Context context, Intent intent) { usage.update(); }
     };
     private MusicPanel musicPanel;
+    private FullscreenStatus fullscreenStatus;
+    private boolean statusToggleGesture;
     private static GeckoRuntime runtime;
     private GeckoSession session;
     private GeckoView web;
@@ -128,7 +130,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         forwardButton.setEnabled(canForward);forwardButton.setAlpha(canForward?1f:0.35f);
         web.setSession(session);
         applyPresentation();
-        web.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->updatePipParams());
+        web.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{updatePipParams();fullscreenStatus.update();});
         runtime.getWebExtensionController().setTabActive(session,true);
         configureExtensionPrompts();
         runtime.getWebExtensionController().list().accept(list->{for(WebExtension e:list)attachExtension(e);},e->{});
@@ -167,9 +169,11 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         Button[] buttons={back,forwardButton,ui.nav("refresh","更新",this::confirmReload,false),ui.nav("music","音楽",this::showMusic,true),ui.nav("extensions","拡張",this::extensionsMenu,false),ui.nav("more","メニュー",this::menu,false)};
         for(int i=0;i<buttons.length;i++){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(60),i==3?1.2f:1);lp.setMargins(dp(1),0,dp(1),0);toolbar.addView(buttons[i],lp);}
         LinearLayout.LayoutParams dock=new LinearLayout.LayoutParams(-1,dp(70));dock.setMargins(dp(10),dp(8),dp(10),dp(8));column.addView(toolbar,dock);
+        fullscreenStatus=new FullscreenStatus(this,root,web,prefs,ui);
         root.setOnApplyWindowInsetsListener((v,insets)->{
             Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());Insets ime=insets.getInsets(WindowInsets.Type.ime());
-            if(isInPictureInPictureMode())root.setPadding(0,0,0,0);else if(viewing.videoOnly())root.setPadding(bars.left,bars.top,bars.right,0);else root.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,ime.bottom));return insets;
+            if(viewing.videoOnly()||isInPictureInPictureMode())root.setPadding(0,0,0,0);else root.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,ime.bottom));
+            fullscreenStatus.update();return insets;
         });setContentView(root);
     }
     private void sendMusic(JSONObject data){
@@ -195,7 +199,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         });
         s.setNavigationDelegate(new GeckoSession.NavigationDelegate(){
             @Override public void onLocationChange(GeckoSession source,String url,List<GeckoSession.PermissionDelegate.ContentPermission> permissions,Boolean gesture){
-                if(main&&url!=null){currentUrl=url;PlaybackService.setPageUrl(url);address.setText(displayOrigin(url));if(isYoutube(url))prefs.edit().putString("lastUrl",url).apply();}
+                if(main&&url!=null){if(!url.equals(currentUrl))fullscreenStatus.clearVideo();currentUrl=url;PlaybackService.setPageUrl(url);address.setText(displayOrigin(url));if(isYoutube(url))prefs.edit().putString("lastUrl",url).apply();}
                 else if(url!=null&&auxiliaryLabels.containsKey(source))auxiliaryLabels.get(source).setText("閉じる · "+displayOrigin(url));
             }
             @Override public void onCanGoBack(GeckoSession source,boolean value){if(main){canBack=value;PlaybackService.setCanGoBack(value);}}
@@ -207,14 +211,14 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
             }
             @Override public GeckoResult<GeckoSession> onNewSession(GeckoSession source,String uri){return GeckoResult.fromValue(openAuxiliary("ページ · "+displayOrigin(uri),null,false));}
             @Override public GeckoResult<String> onLoadError(GeckoSession source,String uri,WebRequestError error){
-                if(main){progress.setVisibility(View.INVISIBLE);toast("ページを読み込めませんでした。接続を確認し、メニューから再読み込みしてください。");}
+                if(main){progress.setVisibility(viewing.videoOnly()?View.GONE:View.INVISIBLE);toast("ページを読み込めませんでした。接続を確認し、メニューから再読み込みしてください。");}
                 return null; // Preserve Gecko's certificate and network error handling.
             }
         });
         s.setProgressDelegate(new GeckoSession.ProgressDelegate(){
-            @Override public void onPageStart(GeckoSession source,String url){if(main){progress.setVisibility(View.VISIBLE);progress.setProgress(5);}}
+            @Override public void onPageStart(GeckoSession source,String url){if(main){progress.setVisibility(viewing.videoOnly()?View.GONE:View.VISIBLE);progress.setProgress(5);}}
             @Override public void onProgressChange(GeckoSession source,int value){if(main)progress.setProgress(value);}
-            @Override public void onPageStop(GeckoSession source,boolean success){if(main)progress.setVisibility(View.INVISIBLE);}
+            @Override public void onPageStop(GeckoSession source,boolean success){if(main)progress.setVisibility(viewing.videoOnly()?View.GONE:View.INVISIBLE);}
         });
         s.setPermissionDelegate(new GeckoSession.PermissionDelegate(){
             @Override public GeckoResult<Integer> onContentPermissionRequest(GeckoSession source,ContentPermission permission){
@@ -244,8 +248,12 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private void attachController(){PlaybackService.connectController(controller);}
     @Override public void onControllerMessage(JSONObject message){
         String type=message.optString("type");
-        if("ready".equals(type)&&musicPanel.isShowing()){
-            try{sendMusic(new JSONObject().put("action","query"));}catch(Exception ignored){}
+        if("ready".equals(type)){
+            fullscreenStatus.clearVideo();
+            if(musicPanel.isShowing())try{sendMusic(new JSONObject().put("action","query"));}catch(Exception ignored){}
+        }else if("fullscreenVideo".equals(type)){
+            if("full".equals(viewing.pageMode())&&PlaybackService.currentPresentation(message.optLong("revision",-1)))
+                fullscreenStatus.setVideoSize(message.optInt("width",0),message.optInt("height",0));
         }else if("presentationRequest".equals(type)){
             if(!foreground||viewing.inPipOrEntering()||!PlaybackService.currentPresentation(message.optLong("revision",-1))){PlaybackService.syncPresentation();return;}
             String mode=message.optString("mode");
@@ -276,15 +284,21 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         fullscreen=viewing.fullscreen();boolean videoOnly=viewing.videoOnly()||isInPictureInPictureMode();
         if(videoOnly)musicPanel.dismiss();
         boolean compact=isInMultiWindowMode()&&getResources().getConfiguration().screenHeightDp<540;
-        header.setVisibility(videoOnly||compact?View.GONE:View.VISIBLE);toolbar.setVisibility(videoOnly?View.GONE:View.VISIBLE);progress.setVisibility(View.INVISIBLE);
+        header.setVisibility(videoOnly||compact?View.GONE:View.VISIBLE);toolbar.setVisibility(videoOnly?View.GONE:View.VISIBLE);progress.setVisibility(videoOnly?View.GONE:View.INVISIBLE);
         if(!isInPictureInPictureMode()&&!viewing.inPipOrEntering()){
             int orientation=isInMultiWindowMode()?ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED:
                     fullscreen?ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE:ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
             if(getRequestedOrientation()!=orientation)setRequestedOrientation(orientation);
             WindowInsetsController bars=getWindow().getInsetsController();
-            if(bars!=null){bars.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);if(fullscreen){bars.show(WindowInsets.Type.statusBars());bars.hide(WindowInsets.Type.navigationBars());}else bars.show(WindowInsets.Type.systemBars());}
+            if(bars!=null){bars.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);if(fullscreen)bars.hide(WindowInsets.Type.systemBars());else bars.show(WindowInsets.Type.systemBars());}
         }
+        if(!"full".equals(viewing.pageMode()))fullscreenStatus.clearVideo();
+        updateFullscreenStatus();
         PlaybackService.setPresentation(viewing.pageMode());root.requestApplyInsets();updatePipParams();
+    }
+    private void updateFullscreenStatus(){
+        fullscreenStatus.setActive(foreground&&fullscreen&&!viewing.inPipOrEntering()&&!isInPictureInPictureMode()
+                &&getResources().getConfiguration().orientation==Configuration.ORIENTATION_LANDSCAPE);
     }
     private void leaveFullScreen(){
         resetFullscreenSwipe();viewing.requestFullscreen(false);pipTransitionGeneration++;PlaybackService.cancelPipTransition();
@@ -293,6 +307,11 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     }
     @Override public boolean dispatchTouchEvent(MotionEvent event){
         final int action=event.getActionMasked();
+        if(action==MotionEvent.ACTION_DOWN)statusToggleGesture=fullscreenStatus!=null&&fullscreenStatus.toggleHit(event.getX(),event.getY());
+        if(statusToggleGesture){
+            if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL)statusToggleGesture=false;
+            fullscreenSwipe.cancel();return super.dispatchTouchEvent(event);
+        }
         if(!fullscreen||viewing.inPipOrEntering()||isInPictureInPictureMode()||!prefs.getBoolean("gestures",true)){
             if(consumingFullscreenSwipe||settlingFullscreenSwipe)resetFullscreenSwipe();
             fullscreenSwipe.cancel();return super.dispatchTouchEvent(event);
@@ -416,7 +435,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     }
     private void menu(){
         String gesture=prefs.getBoolean("gestures",true)?"動画ジェスチャー：ON → OFF":"動画ジェスチャー：OFF → ON";
-        new MaterialAlertDialogBuilder(this).setTitle("SatiMod").setItems(new String[]{"URLを開く / 貼り付ける","動画を共有する","ページの先頭へ",gesture,"ページを再読み込みする","使い方・このアプリについて","再生の診断","再生の操作","YouTubeホームへ"},(d,w)->{
+        new MaterialAlertDialogBuilder(this).setTitle("SatiMod").setItems(new String[]{"URLを開く / 貼り付ける","動画を共有する","ページの先頭へ",gesture,"ページを再読み込みする","使い方・このアプリについて","再生の診断","再生の操作","YouTubeホームへ",fullscreenStatus.menuTitle()},(d,w)->{
             switch(w){
                 case 0:openInput();break;
                 case 1:startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,currentUrl),"動画を共有"));break;
@@ -426,6 +445,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
                 case 5:about();break;
                 case 7:playbackMenu();break;
                 case 8:navigate(HOME_URL);break;
+                case 9:fullscreenStatus.toggle();break;
                 case 6:
                     String report=PlaybackService.diagnostics();
                     new MaterialAlertDialogBuilder(this).setTitle("再生の診断").setMessage(report).setPositiveButton("コピー",(dialog,which)->{
@@ -662,12 +682,13 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         }return url;
     }
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String url=launchUrl(intent);if(url!=null&&session!=null)navigate(url);}
-    @Override protected void onStart(){super.onStart();usage.visible(true);foreground=true;PlaybackService.setUiForeground(true);if(session!=null)session.setActive(true);updateAwake();updatePipParams();}
+    @Override protected void onStart(){super.onStart();usage.visible(true);foreground=true;updateFullscreenStatus();PlaybackService.setUiForeground(true);if(session!=null)session.setActive(true);updateAwake();updatePipParams();}
     @Override protected void onResume(){super.onResume();if(session!=null)session.setFocused(true);if(!isInPictureInPictureMode()&&viewing.inPipOrEntering())viewing.leftPip();applyPresentation();}
-    @Override protected void onStop(){usage.visible(false);super.onStop();resetFullscreenSwipe();foreground=false;PlaybackService.setUiForeground(false);updateAwake();if(session!=null)session.setActive(isInPictureInPictureMode()||viewing.inPipOrEntering());}
+    @Override protected void onStop(){usage.visible(false);super.onStop();resetFullscreenSwipe();foreground=false;fullscreenStatus.setActive(false);PlaybackService.setUiForeground(false);updateAwake();if(session!=null)session.setActive(isInPictureInPictureMode()||viewing.inPipOrEntering());}
     @Override protected void onDestroy(){
         usage.visible(false);
         unregisterReceiver(usageScreenReceiver);
+        fullscreenStatus.setActive(false);
         musicPanel.dismiss();
         for(Dialog d:new ArrayList<>(auxiliary))d.dismiss();
         runtime.getWebExtensionController().setPromptDelegate(null);
