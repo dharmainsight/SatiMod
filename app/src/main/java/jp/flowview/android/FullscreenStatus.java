@@ -15,21 +15,23 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
 
-/** Keep the real Android status bar above the full-size video; only its switch is app UI. */
+/** SystemUI remains at portrait top, with the switch on the opposite landscape gutter. */
 final class FullscreenStatus {
     private static final String KEY="fullscreenSideStatus";
     private final Activity activity;
     private final FrameLayout root;
+    private final FullscreenRotationLayout rotation;
     private final View web;
     private final SharedPreferences prefs;
     private final FlowUi ui;
     private final Button toggle;
     private double viewportWidth,viewportHeight,videoLeft,videoRight=1;
     private String lastResult="not entered";
-    private boolean active;
+    private boolean active,statusFits;
+    private Boolean requestedBar;
 
-    FullscreenStatus(Activity activity,FrameLayout root,View web,SharedPreferences prefs,FlowUi ui){
-        this.activity=activity;this.root=root;this.web=web;this.prefs=prefs;this.ui=ui;
+    FullscreenStatus(Activity activity,FrameLayout root,View web,SharedPreferences prefs,FlowUi ui,FullscreenRotationLayout rotation){
+        this.activity=activity;this.root=root;this.web=web;this.prefs=prefs;this.ui=ui;this.rotation=rotation;
         toggle=ui.button("",null,this::toggle,false);
         toggle.setTextSize(12);toggle.setPadding(0,0,0,0);toggle.setVisibility(View.GONE);
         root.addView(toggle,new FrameLayout.LayoutParams(0,0));
@@ -71,12 +73,25 @@ final class FullscreenStatus {
 
     private boolean enabled(){return prefs.getBoolean(KEY,true);}
     String menuTitle(){return "横画面の通知バー："+(enabled()?"ON → OFF":"OFF → ON");}
-    void applySystemBars(boolean fullscreen){applyBars(activity.getWindow().getInsetsController(),fullscreen,enabled());}
+    void applySystemBars(boolean fullscreen){
+        boolean visible=active&&rotation.turn()!=0&&statusFits&&enabled();
+        applyBars(activity.getWindow().getInsetsController(),fullscreen,visible);
+        requestedBar=fullscreen?visible:null;
+    }
+    private void updateBar(boolean fits){
+        statusFits=fits;
+        if(!active)return;
+        boolean visible=enabled()&&fits;
+        WindowInsetsController bars=activity.getWindow().getInsetsController();
+        if(bars!=null&&(requestedBar==null||requestedBar!=visible)){
+            requestedBar=visible;
+            if(visible)bars.show(WindowInsets.Type.statusBars());
+            else bars.hide(WindowInsets.Type.statusBars());
+        }
+    }
     void toggle(){
         prefs.edit().putBoolean(KEY,!enabled()).apply();updateToggleLabel();
-        // A portrait menu change only saves the future fullscreen preference.
-        // A fullscreen button changes OS bar visibility, never playback or presentation mode.
-        if(active)applySystemBars(true);
+        // The switch never changes the viewport, rotation, video node or playback.
         update();
     }
     private void updateToggleLabel(){
@@ -84,7 +99,7 @@ final class FullscreenStatus {
         String description=enabled()?"通知バーを隠す":"通知バーを表示する";
         toggle.setContentDescription(description);toggle.setTooltipText(description);
     }
-    void setActive(boolean value){active=value;update();}
+    void setActive(boolean value){active=value;if(!value){statusFits=false;requestedBar=null;}update();}
     void clearVideo(){setVideoBounds(0,0,0,1);}
     void setVideoBounds(double width,double height,double left,double right){
         if(!Double.isFinite(width)||!Double.isFinite(height)||!Double.isFinite(left)||!Double.isFinite(right)
@@ -94,28 +109,31 @@ final class FullscreenStatus {
         viewportWidth=width;viewportHeight=height;videoLeft=left;videoRight=right;update();
     }
     String diagnostics(){return "fullscreen native status="+lastResult+" enabled="+enabled();}
-    void update(){update(root.getRootWindowInsets());}
+    void update(){update(rotation.getRootWindowInsets());}
     void update(WindowInsets insets){
         if(!active){hide();return;}
-        int width=web.getWidth(),height=web.getHeight();
-        if(insets==null||width<=0||height<=0||width!=root.getWidth()||height!=root.getHeight()
+        int width=web.getWidth(),height=web.getHeight(),turn=rotation.turn();
+        if(turn==0||insets==null||width<=0||height<=0||width!=root.getWidth()||height!=root.getHeight()
                 ||web.getLeft()!=0||web.getTop()!=0||root.getPaddingLeft()!=0||root.getPaddingTop()!=0
                 ||root.getPaddingRight()!=0||root.getPaddingBottom()!=0){
-            lastResult="waiting for full native layout "+width+"x"+height+"/"+root.getWidth()+"x"+root.getHeight();hide();return;
+            lastResult="waiting for rotated full layout "+width+"x"+height+" turn="+turn;updateBar(false);hide();return;
         }
         String bar="barVisible="+insets.isVisible(WindowInsets.Type.statusBars())+" ";
         if(viewportWidth<=0||viewportHeight<=0){
-            lastResult=bar+"no geometry from controller";hide();return;
+            lastResult=bar+"no geometry from controller";updateBar(false);hide();return;
         }
         if(Math.abs((viewportWidth/viewportHeight)/(width/(double)height)-1)>.05){
-            lastResult=bar+"viewport/native aspect mismatch";hide();return;
+            lastResult=bar+"viewport/native aspect mismatch";updateBar(false);hide();return;
         }
         int leftMargin=(int)Math.floor(videoLeft*width),rightMargin=(int)Math.floor((1-videoRight)*width);
-        Insets safe=insets.getInsetsIgnoringVisibility(WindowInsets.Type.displayCutout()|WindowInsets.Type.statusBars());
-        FullscreenSideLayout.Slot slot=FullscreenSideLayout.toggleSlot(width,height,leftMargin,rightMargin,
+        Insets physical=insets.getInsetsIgnoringVisibility(WindowInsets.Type.displayCutout()|WindowInsets.Type.statusBars());
+        Insets safe=rotation.logicalInsets(physical);
+        boolean fits=FullscreenSideLayout.statusFits(turn,leftMargin,rightMargin,physical.top,ui.dp(2));
+        FullscreenSideLayout.Slot slot=FullscreenSideLayout.toggleSlot(turn,width,height,leftMargin,rightMargin,
                 safe.left,safe.top,safe.right,safe.bottom,ui.dp(48),ui.dp(80),ui.dp(48),ui.dp(4));
-        lastResult=bar+"gutters="+leftMargin+"/"+rightMargin+" safe="+safe.left+"/"+safe.right+" toggle="+(slot!=null);
-        place(slot);
+        lastResult=bar+"turn="+turn+" gutters="+leftMargin+"/"+rightMargin+" statusExtent="+physical.top
+                +" fits="+fits+" toggle="+(slot!=null);
+        updateBar(fits);place(slot);
     }
     private void hide(){toggle.setVisibility(View.GONE);}
     @SuppressLint("RtlHardcoded") // The slots use physical display coordinates.
@@ -130,7 +148,6 @@ final class FullscreenStatus {
     }
     boolean toggleHit(float x,float y){
         if(toggle.getVisibility()!=View.VISIBLE)return false;
-        int[] position=new int[2];toggle.getLocationInWindow(position);
-        return x>=position[0]&&x<position[0]+toggle.getWidth()&&y>=position[1]&&y<position[1]+toggle.getHeight();
+        return x>=toggle.getLeft()&&x<toggle.getRight()&&y>=toggle.getTop()&&y<toggle.getBottom();
     }
 }

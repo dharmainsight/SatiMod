@@ -27,6 +27,7 @@ import android.text.Html;
 import android.util.Rational;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.OrientationEventListener;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowManager;
@@ -82,6 +83,10 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private WebExtension controller;
     private SharedPreferences prefs;
     private FrameLayout root;
+    private FullscreenRotationLayout rotatedContent;
+    private OrientationEventListener orientationListener;
+    private int landscapeTurn=90;
+    private final float[] contentTouch=new float[2];
     private LinearLayout column, header, toolbar;
     private TextView address;
     private Button forwardButton;
@@ -113,6 +118,17 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         androidx.core.content.ContextCompat.registerReceiver(this, usageScreenReceiver, screenEvents,
                 androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
         createUi();
+        orientationListener=new OrientationEventListener(this){
+            @Override public void onOrientationChanged(int degrees){
+                int next=FullscreenRotationLayout.sensorTurn(degrees,landscapeTurn);
+                if(next==landscapeTurn)return;
+                landscapeTurn=next;
+                if(usesSideRotation()){
+                    resetFullscreenSwipe();fullscreenStatus.clearVideo();
+                    rotatedContent.setTurn(landscapeTurn);
+                }
+            }
+        };
         if(runtime==null) runtime=GeckoRuntime.create(getApplicationContext(),new GeckoRuntimeSettings.Builder()
                 .remoteDebuggingEnabled(false).consoleOutput(false)
                 .preferredColorScheme(GeckoRuntimeSettings.COLOR_SCHEME_DARK).build());
@@ -161,18 +177,20 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         LinearLayout brand=ui.column();TextView name=ui.title("SatiMod",20);name.setLetterSpacing(0.02f);brand.addView(name);ui.gap(brand,4);address=ui.text("YouTubeブラウザー",11,FlowUi.MUTED);address.setSingleLine(true);address.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);brand.addView(address);brand.setContentDescription("URLを開く");brand.setOnClickListener(v->openInput());
         LinearLayout.LayoutParams bl=new LinearLayout.LayoutParams(0,-2,1);bl.setMargins(dp(12),0,dp(8),0);header.addView(brand,bl);header.addView(ui.icon("analytics","利用時間の分析",this::showUsage,false),new LinearLayout.LayoutParams(dp(48),dp(48)));column.addView(header,new LinearLayout.LayoutParams(-1,dp(64)));
         progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(100);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(MINT));column.addView(progress,new LinearLayout.LayoutParams(-1,dp(2)));progress.setVisibility(View.INVISIBLE);
-        web=new GeckoView(this);web.setOverScrollMode(View.OVER_SCROLL_NEVER);web.setBackgroundColor(BG);column.addView(web,new LinearLayout.LayoutParams(-1,0,1));
+        web=new GeckoView(this);web.setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW);web.setOverScrollMode(View.OVER_SCROLL_NEVER);web.setBackgroundColor(BG);column.addView(web,new LinearLayout.LayoutParams(-1,0,1));
         toolbar=ui.row();toolbar.setBackground(ui.shape(FlowUi.SURFACE,26));toolbar.setPadding(dp(5),dp(5),dp(5),dp(5));toolbar.setElevation(dp(4));
         MaterialButton back=ui.nav("back","戻る",this::back,false);forwardButton=ui.nav("forward","進む",this::forward,false);forwardButton.setEnabled(false);forwardButton.setAlpha(.35f);
         Button[] buttons={back,forwardButton,ui.nav("refresh","更新",this::confirmReload,false),ui.nav("music","音楽",this::showMusic,true),ui.nav("extensions","拡張",this::extensionsMenu,false),ui.nav("more","メニュー",this::menu,false)};
         for(int i=0;i<buttons.length;i++){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(60),i==3?1.2f:1);lp.setMargins(dp(1),0,dp(1),0);toolbar.addView(buttons[i],lp);}
         LinearLayout.LayoutParams dock=new LinearLayout.LayoutParams(-1,dp(70));dock.setMargins(dp(10),dp(8),dp(10),dp(8));column.addView(toolbar,dock);
-        fullscreenStatus=new FullscreenStatus(this,root,web,prefs,ui);
+        rotatedContent=new FullscreenRotationLayout(this,root);
+        fullscreenStatus=new FullscreenStatus(this,root,web,prefs,ui,rotatedContent);
+        rotatedContent.setLayoutCallback(()->{fullscreenStatus.update();updatePipParams();});
         root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->fullscreenStatus.update());
-        root.setOnApplyWindowInsetsListener((v,insets)->{
+        rotatedContent.setOnApplyWindowInsetsListener((v,insets)->{
             FullscreenStatus.applyContentInsets(root,insets,viewing.videoOnly()||isInPictureInPictureMode());
             fullscreenStatus.update(insets);return insets;
-        });setContentView(root);
+        });setContentView(rotatedContent);
     }
     private void sendMusic(JSONObject data){
         try{if(!PlaybackService.send(new JSONObject().put("command","music").put("data",data)))musicPanel.update(new JSONObject().put("error","NoVideo"));}
@@ -284,19 +302,22 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         if(videoOnly)musicPanel.dismiss();
         boolean compact=isInMultiWindowMode()&&getResources().getConfiguration().screenHeightDp<540;
         header.setVisibility(videoOnly||compact?View.GONE:View.VISIBLE);toolbar.setVisibility(videoOnly?View.GONE:View.VISIBLE);progress.setVisibility(videoOnly?View.GONE:View.INVISIBLE);
+        // Keep SystemUI in its original portrait coordinates; rotate only our content.
         if(!isInPictureInPictureMode()&&!viewing.inPipOrEntering()){
-            int orientation=isInMultiWindowMode()?ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED:
-                    fullscreen?ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE:ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+            int orientation=isInMultiWindowMode()?ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED:ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
             if(getRequestedOrientation()!=orientation)setRequestedOrientation(orientation);
-            fullscreenStatus.applySystemBars(fullscreen);
         }
-        if(!"full".equals(viewing.pageMode()))fullscreenStatus.clearVideo();
+        rotatedContent.setTurn(usesSideRotation()?landscapeTurn:0);
         updateFullscreenStatus();
-        PlaybackService.setPresentation(viewing.pageMode());root.requestApplyInsets();updatePipParams();
+        if(!"full".equals(viewing.pageMode()))fullscreenStatus.clearVideo();
+        if(!isInPictureInPictureMode())fullscreenStatus.applySystemBars(videoOnly);
+        PlaybackService.setPresentation(viewing.pageMode());rotatedContent.requestApplyInsets();updatePipParams();
+    }
+    private boolean usesSideRotation(){
+        return fullscreen&&!isInMultiWindowMode()&&!viewing.inPipOrEntering()&&!isInPictureInPictureMode();
     }
     private void updateFullscreenStatus(){
-        fullscreenStatus.setActive(foreground&&fullscreen&&!viewing.inPipOrEntering()&&!isInPictureInPictureMode()
-                &&getResources().getConfiguration().orientation==Configuration.ORIENTATION_LANDSCAPE);
+        fullscreenStatus.setActive(foreground&&usesSideRotation());
     }
     private void leaveFullScreen(){
         resetFullscreenSwipe();viewing.requestFullscreen(false);pipTransitionGeneration++;PlaybackService.cancelPipTransition();
@@ -304,8 +325,10 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         applyPresentation();
     }
     @Override public boolean dispatchTouchEvent(MotionEvent event){
+        if(rotatedContent==null)return super.dispatchTouchEvent(event);
         final int action=event.getActionMasked();
-        if(action==MotionEvent.ACTION_DOWN)statusToggleGesture=fullscreenStatus!=null&&fullscreenStatus.toggleHit(event.getX(),event.getY());
+        rotatedContent.windowToContent(event.getX(),event.getY(),contentTouch);
+        if(action==MotionEvent.ACTION_DOWN)statusToggleGesture=fullscreenStatus!=null&&fullscreenStatus.toggleHit(contentTouch[0],contentTouch[1]);
         if(statusToggleGesture){
             if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL)statusToggleGesture=false;
             fullscreenSwipe.cancel();return super.dispatchTouchEvent(event);
@@ -316,13 +339,13 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         }
         if(settlingFullscreenSwipe&&action!=MotionEvent.ACTION_DOWN)return true;
         float density=getResources().getDisplayMetrics().density;
-        float x=event.getX()/density,y=event.getY()/density;
+        float x=contentTouch[0]/density,y=contentTouch[1]/density;
         if(action==MotionEvent.ACTION_DOWN){
             if(consumingFullscreenSwipe||settlingFullscreenSwipe)resetFullscreenSwipe();
             else fullscreenSwipe.cancel(); // Preserve the page's double-tap history.
             WindowInsets insets=root.getRootWindowInsets();
-            int top=insets==null?0:Math.max(insets.getInsetsIgnoringVisibility(WindowInsets.Type.statusBars()|WindowInsets.Type.displayCutout()).top,
-                    insets.getInsets(WindowInsets.Type.systemGestures()).top);
+            int top=insets==null?0:Math.max(rotatedContent.logicalInsets(insets.getInsetsIgnoringVisibility(WindowInsets.Type.statusBars()|WindowInsets.Type.displayCutout())).top,
+                    rotatedContent.logicalInsets(insets.getInsets(WindowInsets.Type.systemGestures())).top);
             fullscreenSwipe.start(x,y,event.getEventTime(),Math.max(36,top/density));
         }else if(action==MotionEvent.ACTION_CANCEL){
             boolean consumed=consumingFullscreenSwipe;resetFullscreenSwipe();
@@ -375,7 +398,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     private PictureInPictureParams pipParams(){
         PictureInPictureParams.Builder params=new PictureInPictureParams.Builder().setAspectRatio(new Rational(16,9))
                 .setAutoEnterEnabled(!isInMultiWindowMode()&&fullscreen&&(playing||viewing.inPipOrEntering())).setSeamlessResizeEnabled(true);
-        Rect bounds=new Rect();if(web.getGlobalVisibleRect(bounds)&&!bounds.isEmpty())params.setSourceRectHint(bounds);
+        Rect bounds=new Rect();if(rotatedContent.turn()==0&&web.getGlobalVisibleRect(bounds)&&!bounds.isEmpty())params.setSourceRectHint(bounds);
         return params.build();
     }
     private void updatePipParams(){
@@ -685,12 +708,13 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         }return url;
     }
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);String url=launchUrl(intent);if(url!=null&&session!=null)navigate(url);}
-    @Override protected void onStart(){super.onStart();usage.visible(true);foreground=true;updateFullscreenStatus();PlaybackService.setUiForeground(true);if(session!=null)session.setActive(true);updateAwake();updatePipParams();}
+    @Override protected void onStart(){super.onStart();usage.visible(true);foreground=true;if(orientationListener!=null&&orientationListener.canDetectOrientation())orientationListener.enable();updateFullscreenStatus();PlaybackService.setUiForeground(true);if(session!=null)session.setActive(true);updateAwake();updatePipParams();}
     @Override protected void onResume(){super.onResume();if(session!=null)session.setFocused(true);if(!isInPictureInPictureMode()&&viewing.inPipOrEntering())viewing.leftPip();applyPresentation();}
-    @Override protected void onStop(){usage.visible(false);super.onStop();resetFullscreenSwipe();foreground=false;fullscreenStatus.setActive(false);PlaybackService.setUiForeground(false);updateAwake();if(session!=null)session.setActive(isInPictureInPictureMode()||viewing.inPipOrEntering());}
+    @Override protected void onStop(){usage.visible(false);super.onStop();resetFullscreenSwipe();foreground=false;if(orientationListener!=null)orientationListener.disable();fullscreenStatus.setActive(false);PlaybackService.setUiForeground(false);updateAwake();if(session!=null)session.setActive(isInPictureInPictureMode()||viewing.inPipOrEntering());}
     @Override protected void onDestroy(){
         usage.visible(false);
         unregisterReceiver(usageScreenReceiver);
+        if(orientationListener!=null)orientationListener.disable();
         fullscreenStatus.setActive(false);
         musicPanel.dismiss();
         for(Dialog d:new ArrayList<>(auxiliary))d.dismiss();
