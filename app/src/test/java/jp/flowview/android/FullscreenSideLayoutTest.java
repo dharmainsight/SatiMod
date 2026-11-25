@@ -33,6 +33,17 @@ public class FullscreenSideLayoutTest {
         p=plan(900,400,9,16,30,0);
         assertEquals(80,p.status.width);assertEquals(80,p.toggle.width);
     }
+    @Test public void measuredPixelGuttersAndCutout(){
+        var p=FullscreenSideLayout.planGutters(1536,684,160,159,80,0,0,0,100,150,200,100,8);
+        assertNotNull(p.status);assertNotNull(p.toggle);
+        assertTrue(p.status.x>=1377&&p.toggle.x>=1377);
+        assertTrue(p.status.y+p.status.height<=p.toggle.y);
+        p=FullscreenSideLayout.planGutters(1536,684,160,159,0,0,0,0,100,150,200,100,8);
+        assertNotNull(p.status);assertNotNull(p.toggle);
+        assertTrue(p.status.x+p.status.width<=160&&p.toggle.x>=1377);
+        p=FullscreenSideLayout.planGutters(1536,684,0,0,0,0,0,0,100,150,200,100,8);
+        assertNull(p.status);assertNull(p.toggle);
+    }
     @Test public void geometrySweepNeverCoversVideoOrCutout(){
         for(int w=100;w<1500;w+=13)for(int h=50;h<800;h+=17)for(int vw=1;vw<25;vw+=3){
             var p=plan(w,h,vw,9,25,40);

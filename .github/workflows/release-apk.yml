@@ -41,6 +41,17 @@ jobs:
         run: |
           echo "RELEASE_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
           echo "RELEASE_NAME=0.4.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+      - name: Version bundled WebExtension
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path("app/src/main/assets/controller/manifest.json")
+          manifest = json.loads(path.read_text())
+          manifest["version"] = os.environ["RELEASE_NAME"]
+          path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+          print("Bundled controller version:", manifest["version"])
+          PY
       - name: JavaScript tests
         run: npm ci --ignore-scripts --no-audit --no-fund && npm test
       - name: Android SDK

@@ -18,7 +18,7 @@
 
 mainへアプリ・ビルド関連の変更をマージすると自動実行する。説明文だけの変更では実行しない。手動実行もできる。`versionCode = 1000 + github.run_number`、表示版 `0.4.<run_number>` とする。ワークフローを作り直して実行番号をリセットしない。再実行は同じバージョンなので、公開済みAPKを上書きしない。新しい更新は新規実行にする。
 
-JavaScript試験、Android単体試験・Lint・ビルドが通った後、Secretsの鍵で署名する。証明書、アプリID、バージョン、ABI、非デバッグ、16KiB ZIP整列を検証してからGitHub Releasesへ公開する。Actions artifactと依存キャッシュへのアップロードは行わない。
+APKの内蔵WebExtension manifest版を `RELEASE_NAME` と同期する。同じ拡張IDで版だけを進め、GeckoViewが旧登録を使い続けないようにする。JavaScript試験、Android単体試験・Lint・ビルドが通った後、Secretsの鍵で署名する。証明書、アプリID、バージョン、ABI、非デバッグ、16KiB ZIP整列を検証してからGitHub Releasesへ公開する。Actions artifactと依存キャッシュへのアップロードは行わない。
 
 公開後の固定ダウンロード先：
 `https://github.com/dharmainsight/SatiMod/releases/latest/download/SatiMod-arm64.apk`

@@ -76,21 +76,37 @@
   }
   // Observations are diagnostics, never requests. Only explicit input changes native mode.
   function reportFull() { post({type:'fullscreen', value:full(), revision:presentationRevision}); }
-  // Report only a verified, centered contain-fitted viewport. Native overlays never
-  // use guessed dimensions; this is an observation, not a presentation request.
+  // Measure the painted video bounds, not whether its DOM element fills the viewport.
+  function measureVideoBounds(rect,style,viewport,videoWidth,videoHeight){
+    const {width:vw,height:vh,offsetLeft:ox=0,offsetTop:oy=0}=viewport;
+    const {left,top,width,height}=rect;
+    if(![vw,vh,ox,oy,left,top,width,height,videoWidth,videoHeight].every(Number.isFinite)||
+        Math.min(vw,vh,width,height,videoWidth,videoHeight)<=0||
+        left+width<=ox||left>=ox+vw||top+height<=oy||top>=oy+vh)return null;
+    let start=left,end=left+width;
+    // A video element may already be centered inside the viewport. Its own
+    // rectangle is a conservative bound, even for cover/fill or unknown styles.
+    const centered=['50% 50%','center center','center','50%'].includes(style.objectPosition);
+    const plainBox=['paddingLeft','paddingRight','paddingTop','paddingBottom','borderLeftWidth',
+      'borderRightWidth','borderTopWidth','borderBottomWidth'].every(k=>!(parseFloat(style[k])>0));
+    if(style.objectFit==='contain'&&centered&&plainBox&&(!style.transform||style.transform==='none')){
+      const paintedWidth=Math.min(width,height*videoWidth/videoHeight);
+      start=left+(width-paintedWidth)/2;end=start+paintedWidth;
+    }
+    const clamp=x=>Math.min(1,Math.max(0,x));
+    const first=clamp((start-ox)/vw),last=clamp((end-ox)/vw);
+    return last>first?{viewportWidth:vw,viewportHeight:vh,left:first,right:last}:null;
+  }
   function reportFullscreenVideo(){
     if(requestedMode!=='full'||presentationRevision<0)return;
     const v=video(),container=fakeFull||document.fullscreenElement;
-    let width=0,height=0;
-    if(v?.isConnected&&container?.isConnected&&(container===v||container.contains(v))&&v.videoWidth>0&&v.videoHeight>0){
-      const r=v.getBoundingClientRect(),style=getComputedStyle(v),vp=window.visualViewport;
-      const fullViewport=Math.abs(r.left)<=2&&Math.abs(r.top)<=2&&Math.abs(r.width-innerWidth)<=2&&Math.abs(r.height-innerHeight)<=2;
-      const unshifted=!vp||(Math.abs(vp.width-innerWidth)<=2&&Math.abs(vp.height-innerHeight)<=2&&Math.abs(vp.offsetLeft)<=2&&Math.abs(vp.offsetTop)<=2);
-      if(fullViewport&&unshifted&&style.objectFit==='contain'&&style.objectPosition==='50% 50%'){
-        width=v.videoWidth;height=v.videoHeight;
-      }
+    let bounds=null;
+    if(!dragTarget&&v?.isConnected&&container?.isConnected&&(container===v||container.contains(v))){
+      const vp=window.visualViewport||{width:innerWidth,height:innerHeight};
+      bounds=measureVideoBounds(v.getBoundingClientRect(),getComputedStyle(v),vp,v.videoWidth,v.videoHeight);
     }
-    post({type:'fullscreenVideo',revision:presentationRevision,width,height});
+    post({type:'fullscreenVideo',revision:presentationRevision,
+      ...(bounds||{viewportWidth:0,viewportHeight:0,left:0,right:1})});
   }
   function requestPresentation(mode) {
     if(presentationRevision<0 || pendingRequest===mode)return;
@@ -177,7 +193,7 @@
       port=browser.runtime.connectNative('flowview');
       port.onMessage.addListener(handle);
       port.onDisconnect.addListener(()=>{port=null;clearTimeout(reconnectTimer);if(active)reconnectTimer=setTimeout(connect,2000);});
-      post({type:'ready'});
+      post({type:'ready',controllerVersion:browser.runtime.getManifest?.()?.version||'',geometryProtocol:2});
     } catch (_) { clearTimeout(reconnectTimer);if(active)reconnectTimer=setTimeout(connect,2000); }
   }
   function allowedTarget(target,v) {

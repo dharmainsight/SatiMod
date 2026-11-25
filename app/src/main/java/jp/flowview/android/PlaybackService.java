@@ -55,7 +55,7 @@ public final class PlaybackService extends Service {
     private boolean hasFocus,resumeAfterFocus;
 
     static void note(String event){if(events.size()>=24)events.removeFirst();events.addLast((SystemClock.elapsedRealtime()/1000)+" "+event);}
-    static String diagnostics(){return "SatiMod 0.3.4 / Android API "+Build.VERSION.SDK_INT+"\nmode="+presentation.mode()+" revision="+presentation.revision()+" playing="+playing+" bridge="+(port!=null)+" engine="+(engine!=null&&engine.isActive())+"\n"+String.join("\n",events);}
+    static String diagnostics(){return "Android API "+Build.VERSION.SDK_INT+"\nmode="+presentation.mode()+" revision="+presentation.revision()+" playing="+playing+" bridge="+(port!=null)+" engine="+(engine!=null&&engine.isActive())+"\n"+String.join("\n",events);}
     static boolean controllerConnected(){return port!=null;}
     static String presentationMode(){return presentation.mode();}
     static boolean currentPresentation(long revision){return presentation.accepts(revision);}
@@ -85,6 +85,7 @@ public final class PlaybackService extends Service {
                         if(from!=port||!(value instanceof JSONObject))return;
                         JSONObject message=(JSONObject)value;String type=message.optString("type");
                         if("ready".equals(type)){
+                            note("controller ready: "+message.optString("controllerVersion","legacy")+" geometry="+message.optInt("geometryProtocol",0));
                             try{send(new JSONObject().put("command","settings").put("gestures",app.getSharedPreferences("flowview",MODE_PRIVATE).getBoolean("gestures",true)).put("nativeFullscreenSwipe",true));}catch(Exception ignored){}
                             syncPresentation();if(pendingTransport!=null)command(pendingTransport);
                         }else if("media".equals(type))pageState(message.optBoolean("playing"));

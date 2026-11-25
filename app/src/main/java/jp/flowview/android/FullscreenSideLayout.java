@@ -15,7 +15,13 @@ final class FullscreenSideLayout {
                      int statusHeight,int toggleHeight,int gap){
         if(width<=0||height<=0||videoWidth<=0||videoHeight<=0)return new Plan(null,null);
         int margin=(int)Math.floor(Math.max(0,(width-height*(double)videoWidth/videoHeight)/2));
-        int leftSpace=margin-left-gap,rightSpace=margin-right-gap,usableHeight=height-top-bottom;
+        return planGutters(width,height,margin,margin,left,top,right,bottom,minWidth,maxWidth,statusHeight,toggleHeight,gap);
+    }
+    static Plan planGutters(int width,int height,int leftMargin,int rightMargin,
+                     int left,int top,int right,int bottom,int minWidth,int maxWidth,
+                     int statusHeight,int toggleHeight,int gap){
+        if(width<=0||height<=0||leftMargin<0||rightMargin<0||(long)leftMargin+rightMargin>width)return new Plan(null,null);
+        int leftSpace=leftMargin-left-gap,rightSpace=rightMargin-right-gap,usableHeight=height-top-bottom;
         boolean l=leftSpace>=minWidth,r=rightSpace>=minWidth;
         if((!l&&!r)||usableHeight<toggleHeight)return new Plan(null,null);
         boolean toggleLeft=!r,statusLeft=l;
@@ -25,8 +31,8 @@ final class FullscreenSideLayout {
             showStatus=usableHeight>=statusHeight+toggleHeight+gap;
             if(showStatus){statusY=top+(usableHeight-statusHeight-toggleHeight-gap)/2;toggleY=statusY+statusHeight+gap;}
         }
-        Slot toggle=slot(toggleLeft,toggleY,toggleHeight,width,margin,left,right,gap,maxWidth);
-        Slot status=showStatus?slot(statusLeft,statusY,statusHeight,width,margin,left,right,gap,maxWidth):null;
+        Slot toggle=slot(toggleLeft,toggleY,toggleHeight,width,toggleLeft?leftMargin:rightMargin,left,right,gap,maxWidth);
+        Slot status=showStatus?slot(statusLeft,statusY,statusHeight,width,statusLeft?leftMargin:rightMargin,left,right,gap,maxWidth):null;
         return new Plan(status,toggle);
     }
     private static Slot slot(boolean leftSide,int y,int h,int width,int margin,int left,int right,int gap,int maxWidth){

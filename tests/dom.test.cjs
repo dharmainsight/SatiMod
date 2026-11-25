@@ -21,19 +21,23 @@ function swipe(target,x=60,y=220,x2=60,y2=80){touch(target,'touchstart',x,y);clo
  let e=swipe(w.document.querySelector('p'));assert.equal(e.move.defaultPrevented,false);assert.equal(e.end.defaultPrevented,false);assert.equal(fsElement,null);console.log('PASS comment gestures remain untouched');
  e=swipe(w.document.querySelector('button'));assert.equal(e.move.defaultPrevented,false);assert.equal(fsElement,null);console.log('PASS player controls remain untouched');
  const original=v;e=swipe(v);await Promise.resolve();assert.equal(player.hasAttribute('data-flowview-full'),true);assert.equal(v.currentTime,62);assert.equal(w.document.querySelector('video'),original);assert.equal(e.end.defaultPrevented,true);console.log('PASS up swipe enters fullscreen without replacing or seeking video');
- // Native status uses real media dimensions only when the video occupies a centered contain viewport.
+ // Reproduce the Pixel screenshot: 1536x684, 16:9 picture from x=160 to x=1377.
  const inlineRect=v.getBoundingClientRect;
+ Object.defineProperty(w,'innerWidth',{value:1536,configurable:true});Object.defineProperty(w,'innerHeight',{value:684,configurable:true});
  Object.defineProperty(v,'videoWidth',{value:1920});Object.defineProperty(v,'videoHeight',{value:1080});
- v.getBoundingClientRect=()=>({left:0,top:0,right:w.innerWidth,bottom:w.innerHeight,width:w.innerWidth,height:w.innerHeight});
+ v.getBoundingClientRect=()=>({left:0,top:0,right:1536,bottom:684,width:1536,height:684});
  v.style.objectFit='contain';v.style.objectPosition='50% 50%';
- commands({command:'state'});
- let geometry=messages.filter(x=>x.type==='fullscreenVideo').at(-1);
- assert.equal(geometry.width,1920);assert.equal(geometry.height,1080);assert.equal(geometry.revision,revision);
- v.style.objectFit='cover';commands({command:'state'});
- geometry=messages.filter(x=>x.type==='fullscreenVideo').at(-1);
- assert.equal(geometry.width,0);assert.equal(geometry.height,0);
+ const geometry=()=>{commands({command:'state'});return messages.filter(x=>x.type==='fullscreenVideo').at(-1);};
+ let g=geometry();
+ assert.ok(Math.abs(g.left*1536-160)<0.01);assert.ok(Math.abs(g.right*1536-1376)<0.01);assert.equal(g.revision,revision);
+ v.getBoundingClientRect=()=>({left:160,top:0,right:1377,bottom:684,width:1217,height:684});
+ v.style.objectFit='fill';g=geometry();
+ assert.ok(Math.abs(g.left*1536-160)<0.01);assert.ok(Math.abs(g.right*1536-1377)<0.01);
+ v.getBoundingClientRect=()=>({left:0,top:0,right:1536,bottom:684,width:1536,height:684});
+ v.style.objectFit='cover';g=geometry();assert.equal(g.left,0);assert.equal(g.right,1);
  v.removeAttribute('style');v.getBoundingClientRect=inlineRect;
- console.log('PASS fullscreen status geometry requires centered contain video');
+ const ready=messages.find(x=>x.type==='ready');assert.equal(ready.geometryProtocol,2);
+ console.log('PASS fullscreen status geometry: full viewport contain, measured Pixel element, cover, protocol');
  swipe(v,60,70,60,230);assert.equal(fsElement,null);assert.equal(player.hasAttribute('data-flowview-full'),false);assert.equal(v.currentTime,62);console.log('PASS down swipe exits fullscreen and preserves position');
  commands({command:'fullscreen'});assert.equal(player.hasAttribute('data-flowview-full'),true);commands({command:'exit'});assert.equal(player.getAttribute('style'),'position:relative');console.log('PASS native fullscreen restores original inline style');
  commands({command:'seek',delta:10});assert.equal(v.currentTime,72);commands({command:'seek',delta:-10});assert.equal(v.currentTime,62);commands({command:'speed',value:1.5});assert.equal(v.playbackRate,1.5);commands({command:'speed',value:20});assert.equal(v.playbackRate,1.5);console.log('PASS playback commands validate and apply values');
