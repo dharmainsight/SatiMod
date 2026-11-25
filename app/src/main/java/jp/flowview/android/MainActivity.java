@@ -139,7 +139,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         if(retained){currentUrl=PlaybackService.retainedUrl();address.setText(displayOrigin(currentUrl));}
         final String startUrl=launch;
         runtime.getWebExtensionController().ensureBuiltIn("resource://android/assets/controller/",CONTROL_ID).accept(ext->{
-            if(isDestroyed())return;controller=ext;attachController();if(startUrl!=null)session.loadUri(startUrl);
+            if(isDestroyed())return;controller=ext;PlaybackService.note("controller installed: "+ext.metaData.version);attachController();if(startUrl!=null)session.loadUri(startUrl);
         },error->{
             if(isDestroyed())return;if(startUrl!=null)session.loadUri(startUrl);
             alert("操作機能を開始できませんでした","動画の表示はできますが、追加ジェスチャーは使えません。アプリを終了して開き直してください。\n"+error.getClass().getSimpleName());
@@ -170,6 +170,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         for(int i=0;i<buttons.length;i++){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(60),i==3?1.2f:1);lp.setMargins(dp(1),0,dp(1),0);toolbar.addView(buttons[i],lp);}
         LinearLayout.LayoutParams dock=new LinearLayout.LayoutParams(-1,dp(70));dock.setMargins(dp(10),dp(8),dp(10),dp(8));column.addView(toolbar,dock);
         fullscreenStatus=new FullscreenStatus(this,root,web,prefs,ui);
+        root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->fullscreenStatus.update());
         root.setOnApplyWindowInsetsListener((v,insets)->{
             Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());Insets ime=insets.getInsets(WindowInsets.Type.ime());
             if(viewing.videoOnly()||isInPictureInPictureMode())root.setPadding(0,0,0,0);else root.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,ime.bottom));
@@ -253,7 +254,8 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
             if(musicPanel.isShowing())try{sendMusic(new JSONObject().put("action","query"));}catch(Exception ignored){}
         }else if("fullscreenVideo".equals(type)){
             if("full".equals(viewing.pageMode())&&PlaybackService.currentPresentation(message.optLong("revision",-1)))
-                fullscreenStatus.setVideoSize(message.optInt("width",0),message.optInt("height",0));
+                fullscreenStatus.setVideoBounds(message.optDouble("viewportWidth",0),message.optDouble("viewportHeight",0),
+                        message.optDouble("left",0),message.optDouble("right",1));
         }else if("presentationRequest".equals(type)){
             if(!foreground||viewing.inPipOrEntering()||!PlaybackService.currentPresentation(message.optLong("revision",-1))){PlaybackService.syncPresentation();return;}
             String mode=message.optString("mode");
@@ -447,7 +449,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
                 case 8:navigate(HOME_URL);break;
                 case 9:fullscreenStatus.toggle();break;
                 case 6:
-                    String report=PlaybackService.diagnostics();
+                    String report="SatiMod "+appVersion()+"\n"+PlaybackService.diagnostics()+"\n"+fullscreenStatus.diagnostics();
                     new MaterialAlertDialogBuilder(this).setTitle("再生の診断").setMessage(report).setPositiveButton("コピー",(dialog,which)->{
                         getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("SatiMod 再生診断",report));
                     }).setNegativeButton("閉じる",null).show();break;
@@ -657,7 +659,11 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         },"addon-import").start();
     }
 
-    private void about(){alert("SatiMod 0.3.4 · 試用版","通常動画の映像上で↑全画面、全画面中に↓で縦画面へ。左右をダブルタップすると10秒移動します。\n\nコメントとShortsの通常スクロールには介入しません。操作が競合する場合は動画ジェスチャーをOFFにできます。\n\n全画面再生中にホームへ移動すると、ドラッグで移動できる小窓（PiP）になります。縦画面から離れると、画面を出さずに音声を継続します。通知から一時停止・再開・停止できます。\n\nリンクや動画を長押しするとリンクをコピーします。拡張は名前・キーワードで検索できます。\n\n下部の「音楽」を開くと、キー±12半音・テンポ50〜200%を調整できます。キーとテンポは独立して調整できます。パネルを開いたまま動画ページをスクロールできます。\n\n更新は下部バーまたはメニューから確認後に行います。OSがアプリを終了した場合は再読み込みが必要です。通常動画の再生位置は約5秒ごとに端末に保存し、次の起動時に復帰を試みます。\n\nGoogle/YouTubeの公式アプリではありません。YouTubeへのログイン・動画・拡張は各サービスに通信します。SatiMod独自の解析送信やアカウント作成はありません。\n\nGeckoView 158 / Mozilla Public License 2.0。改変なしで使用。ソース：https://hg.mozilla.org/releases/mozilla-release/rev/e4ce606692cd81e6898547e2edd7c552fefcbb04\n\nSoundTouchJS 2.1.1 / MPL 2.0。ソースとライセンス：https://github.com/cutterbl/SoundTouchJS\nMaterial Components 1.14.0 / Apache 2.0。ソース：https://github.com/material-components/material-components-android\n\nブラウザーエンジン更新は新しいAPKの導入が必要です。");}
+    private String appVersion(){
+        try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}
+        catch(android.content.pm.PackageManager.NameNotFoundException e){return "不明";}
+    }
+    private void about(){alert("SatiMod "+appVersion(),"通常動画の映像上で↑全画面、全画面中に↓で縦画面へ。左右をダブルタップすると10秒移動します。\n\nコメントとShortsの通常スクロールには介入しません。操作が競合する場合は動画ジェスチャーをOFFにできます。\n\n全画面再生中にホームへ移動すると、ドラッグで移動できる小窓（PiP）になります。縦画面から離れると、画面を出さずに音声を継続します。通知から一時停止・再開・停止できます。\n\nリンクや動画を長押しするとリンクをコピーします。拡張は名前・キーワードで検索できます。\n\n下部の「音楽」を開くと、キー±12半音・テンポ50〜200%を調整できます。キーとテンポは独立して調整できます。パネルを開いたまま動画ページをスクロールできます。\n\n更新は下部バーまたはメニューから確認後に行います。OSがアプリを終了した場合は再読み込みが必要です。通常動画の再生位置は約5秒ごとに端末に保存し、次の起動時に復帰を試みます。\n\nGoogle/YouTubeの公式アプリではありません。YouTubeへのログイン・動画・拡張は各サービスに通信します。SatiMod独自の解析送信やアカウント作成はありません。\n\nGeckoView 158 / Mozilla Public License 2.0。改変なしで使用。ソース：https://hg.mozilla.org/releases/mozilla-release/rev/e4ce606692cd81e6898547e2edd7c552fefcbb04\n\nSoundTouchJS 2.1.1 / MPL 2.0。ソースとライセンス：https://github.com/cutterbl/SoundTouchJS\nMaterial Components 1.14.0 / Apache 2.0。ソース：https://github.com/material-components/material-components-android\n\nブラウザーエンジン更新は新しいAPKの導入が必要です。");}
     private void alert(String title,String message){
         if(isFinishing())return;
         AlertDialog.Builder b=new MaterialAlertDialogBuilder(this).setTitle(title).setMessage(message).setPositiveButton("OK",null);

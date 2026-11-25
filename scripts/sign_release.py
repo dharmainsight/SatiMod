@@ -59,7 +59,7 @@ def main():
     (dist/'SHA256SUMS.txt').write_text(f'{checksum}  SatiMod-arm64.apk\n')
     record = dict(versionName=name, versionCode=code, applicationId='jp.flowview.android', certificateSha256=expected_cert, apkSha256=checksum, sourceCommit=os.environ['GITHUB_SHA'], runId=os.environ['GITHUB_RUN_ID'], pixelTested=False)
     (dist/'release.json').write_text(json.dumps(record, indent=2)+'\n')
-    (dist/'release-notes.md').write_text(f'''音楽パネルに5帯域イコライザを搭載。\n\n初めて0.4系を入れる場合のみ、旧署名のSatiModを削除してからインストールしてください。端末内のログイン・設定は消えます。以後の0.4系はAPKを開いて上書き更新できます。\n\nJavaScript試験・Android単体試験・Lint・署名・16KiB ZIP整列を確認。Pixel実機確認は未実施です。\n\nversionCode: {code}\nソース: {os.environ['GITHUB_SHA']}\n''')
+    (dist/'release-notes.md').write_text(f'''SatiModの更新APKです。変更内容は対応するソースコミットと検証記録を参照してください。\n\n初めて0.4系を入れる場合のみ、旧署名のSatiModを削除してからインストールしてください。端末内のログイン・設定は消えます。以後の0.4系はAPKを開いて上書き更新できます。\n\nJavaScript試験・Android単体試験・Lint・署名・16KiB ZIP整列を確認。Pixel実機確認は未実施です。\n\nversionCode: {code}\nソース: {os.environ['GITHUB_SHA']}\n''')
     print(f'Verified SatiMod {name}, versionCode {code}; certificate {expected_cert}')
 
 

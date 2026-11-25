@@ -27,7 +27,8 @@ final class FullscreenStatus {
     private final FlowUi ui;
     private final TextView status;
     private final Button toggle;
-    private int videoWidth,videoHeight;
+    private double viewportWidth,viewportHeight,videoLeft,videoRight=1;
+    private String lastResult="not entered";
     private boolean active;
     private final Runnable tick=new Runnable(){
         @Override public void run(){
@@ -56,23 +57,37 @@ final class FullscreenStatus {
         toggle.setContentDescription(enabled()?"ステータス表示を隠す":"ステータスを表示する");
     }
     void setActive(boolean value){active=value;update();}
-    void clearVideo(){setVideoSize(0,0);}
-    void setVideoSize(int width,int height){
-        if(width<=0||height<=0||width>100000||height>100000){width=0;height=0;}
-        if(videoWidth==width&&videoHeight==height)return;
-        videoWidth=width;videoHeight=height;update();
+    void clearVideo(){setVideoBounds(0,0,0,1);}
+    void setVideoBounds(double width,double height,double left,double right){
+        if(!Double.isFinite(width)||!Double.isFinite(height)||!Double.isFinite(left)||!Double.isFinite(right)
+                ||width<=0||height<=0||width>100000||height>100000||left<0||right>1||right<=left){
+            width=0;height=0;left=0;right=1;
+        }
+        viewportWidth=width;viewportHeight=height;videoLeft=left;videoRight=right;update();
     }
+    String diagnostics(){return "fullscreen status="+lastResult+" enabled="+enabled();}
     void update(){
         WindowInsets insets=root.getRootWindowInsets();
         // The video-only column must actually occupy the whole root before drawing.
-        if(!active||insets==null||web.getWidth()!=root.getWidth()||web.getHeight()!=root.getHeight()
+        if(!active){hide();return;}
+        int width=web.getWidth(),height=web.getHeight();
+        if(insets==null||width<=0||height<=0||width!=root.getWidth()||height!=root.getHeight()
                 ||web.getLeft()!=0||web.getTop()!=0||root.getPaddingLeft()!=0||root.getPaddingTop()!=0
                 ||root.getPaddingRight()!=0||root.getPaddingBottom()!=0){
-            hide();return;
+            lastResult="waiting for full native layout "+width+"x"+height+"/"+root.getWidth()+"x"+root.getHeight();hide();return;
         }
+        if(viewportWidth<=0||viewportHeight<=0){
+            lastResult="no geometry from controller";hide();return;
+        }
+        if(Math.abs((viewportWidth/viewportHeight)/(width/(double)height)-1)>.05){
+            lastResult="viewport/native aspect mismatch";hide();return;
+        }
+        int leftMargin=(int)Math.floor(videoLeft*width),rightMargin=(int)Math.floor((1-videoRight)*width);
         Insets safe=insets.getInsetsIgnoringVisibility(WindowInsets.Type.displayCutout());
-        FullscreenSideLayout.Plan plan=FullscreenSideLayout.plan(web.getWidth(),web.getHeight(),videoWidth,videoHeight,
+        FullscreenSideLayout.Plan plan=FullscreenSideLayout.planGutters(width,height,leftMargin,rightMargin,
                 safe.left,safe.top,safe.right,safe.bottom,ui.dp(48),ui.dp(80),ui.dp(96),ui.dp(48),ui.dp(4));
+        lastResult="gutters="+leftMargin+"/"+rightMargin+" cutout="+safe.left+"/"+safe.right
+                +" status="+(plan.status!=null)+" toggle="+(plan.toggle!=null);
         boolean wasVisible=status.getVisibility()==View.VISIBLE;
         place(toggle,plan.toggle);
         place(status,enabled()?plan.status:null);
