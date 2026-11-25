@@ -1,5 +1,11 @@
 # 検証状況
 
+## PR #20マージ後の回転タッチ試験修正（2026-11-25）
+
+- [PR検証](https://github.com/dharmainsight/SatiMod/actions/runs/45612202813) と [Release APK run 45612863028](https://github.com/dharmainsight/SatiMod/actions/runs/45612863028) で、Android単体試験35件中1件（`rotatedTouchDispatchReachesTheOppositeGutterButton`）が失敗。DOWN/UPのdispatchは通過したがクリックコールバックの回数が一致せず、0.4.11は未公開。
+- 旧試験はウィンドウに未接続のViewを対象としており、AndroidのView.post()によるクリック処理が接続まで保留される条件だった。Activityに接続してから実際のイベントを送り、左右両方向のボタンへの到達・ローカル座標・クリックコールバックをすべて確認する試験に変更する。製品コード・署名・権限・設定・配布ワークフローは変更しない。
+- 修正後のCIおよびPixel実機での検証は別途結果を確認する。
+
 ## 縦画面の通知バーを横画面の黒帯に残す（PR #20修正・2026-11-25）
 
 - ユーザーの要件：縦画面上端の実際のAndroid通知バーを物理位置・向きとも維持し、動画だけを横画面にして反対側に「隠す／表示」を置く。以前のPR #20の横画面上端への重ね表示は要件不一致なので置換した。
