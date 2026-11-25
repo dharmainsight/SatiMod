@@ -16,7 +16,6 @@ import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.graphics.Insets;
 import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -30,7 +29,6 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowInsets;
-import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -105,7 +103,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs=getSharedPreferences("flowview",MODE_PRIVATE);
-        getWindow().setDecorFitsSystemWindows(false);
+        FullscreenStatus.configureEdgeToEdge(getWindow());
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         usage = new UsageTracker(this);
         android.content.IntentFilter screenEvents = new android.content.IntentFilter();
@@ -172,9 +170,8 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
         fullscreenStatus=new FullscreenStatus(this,root,web,prefs,ui);
         root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->fullscreenStatus.update());
         root.setOnApplyWindowInsetsListener((v,insets)->{
-            Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());Insets ime=insets.getInsets(WindowInsets.Type.ime());
-            if(viewing.videoOnly()||isInPictureInPictureMode())root.setPadding(0,0,0,0);else root.setPadding(bars.left,bars.top,bars.right,Math.max(bars.bottom,ime.bottom));
-            fullscreenStatus.update();return insets;
+            FullscreenStatus.applyContentInsets(root,insets,viewing.videoOnly()||isInPictureInPictureMode());
+            fullscreenStatus.update(insets);return insets;
         });setContentView(root);
     }
     private void sendMusic(JSONObject data){
@@ -291,8 +288,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
             int orientation=isInMultiWindowMode()?ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED:
                     fullscreen?ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE:ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
             if(getRequestedOrientation()!=orientation)setRequestedOrientation(orientation);
-            WindowInsetsController bars=getWindow().getInsetsController();
-            if(bars!=null){bars.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);if(fullscreen)bars.hide(WindowInsets.Type.systemBars());else bars.show(WindowInsets.Type.systemBars());}
+            fullscreenStatus.applySystemBars(fullscreen);
         }
         if(!"full".equals(viewing.pageMode()))fullscreenStatus.clearVideo();
         updateFullscreenStatus();
@@ -401,6 +397,7 @@ public final class MainActivity extends AppCompatActivity implements PlaybackSer
     @Override public void onWindowFocusChanged(boolean focused){
         super.onWindowFocusChanged(focused);
         if(!focused)resetFullscreenSwipe();
+        else if(foreground&&fullscreenStatus!=null&&!isInPictureInPictureMode()&&!viewing.inPipOrEntering())fullscreenStatus.applySystemBars(fullscreen);
     }
     @Override public void onPictureInPictureUiStateChanged(PictureInPictureUiState state){
         super.onPictureInPictureUiStateChanged(state);

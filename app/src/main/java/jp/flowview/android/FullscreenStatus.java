@@ -3,21 +3,19 @@ package jp.flowview.android;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.graphics.Insets;
-import android.net.ConnectivityManager;
-import android.net.Network;
-import android.net.NetworkCapabilities;
-import android.os.BatteryManager;
-import android.text.format.DateFormat;
+import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
+import android.view.Window;
 import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
-import android.widget.TextView;
-import java.util.Date;
 
-/** Native status summary in unused video gutters, not a relocated Android system bar. */
+/** Keep the real Android status bar above the full-size video; only its switch is app UI. */
 final class FullscreenStatus {
     private static final String KEY="fullscreenSideStatus";
     private final Activity activity;
@@ -25,36 +23,66 @@ final class FullscreenStatus {
     private final View web;
     private final SharedPreferences prefs;
     private final FlowUi ui;
-    private final TextView status;
     private final Button toggle;
     private double viewportWidth,viewportHeight,videoLeft,videoRight=1;
     private String lastResult="not entered";
     private boolean active;
-    private final Runnable tick=new Runnable(){
-        @Override public void run(){
-            if(status.getVisibility()!=View.VISIBLE)return;
-            refresh();
-            root.postDelayed(this,5000);
-        }
-    };
 
     FullscreenStatus(Activity activity,FrameLayout root,View web,SharedPreferences prefs,FlowUi ui){
         this.activity=activity;this.root=root;this.web=web;this.prefs=prefs;this.ui=ui;
-        status=ui.text("",12,FlowUi.TEXT);
-        status.setGravity(Gravity.CENTER);status.setMaxLines(5);
-        status.setAutoSizeTextTypeUniformWithConfiguration(10,14,1,android.util.TypedValue.COMPLEX_UNIT_SP);
-        status.setVisibility(View.GONE);root.addView(status,new FrameLayout.LayoutParams(0,0));
         toggle=ui.button("",null,this::toggle,false);
         toggle.setTextSize(12);toggle.setPadding(0,0,0,0);toggle.setVisibility(View.GONE);
         root.addView(toggle,new FrameLayout.LayoutParams(0,0));
         updateToggleLabel();
     }
+
+    @SuppressWarnings("deprecation")
+    static void configureEdgeToEdge(Window window){
+        window.setDecorFitsSystemWindows(false);
+        // The visible status bar must not change the window bounds at a display cutout.
+        WindowManager.LayoutParams attrs=window.getAttributes();
+        attrs.layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+        window.setAttributes(attrs);
+        // Android 15+ enforces a transparent status bar for our target SDK.
+        if(Build.VERSION.SDK_INT<35)window.setStatusBarColor(Color.TRANSPARENT);
+    }
+
+    static void applyBars(WindowInsetsController controller,boolean fullscreen,boolean statusEnabled){
+        if(controller==null)return;
+        controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        if(!fullscreen){controller.show(WindowInsets.Type.systemBars());return;}
+        controller.hide(WindowInsets.Type.navigationBars());
+        if(statusEnabled)controller.show(WindowInsets.Type.statusBars());
+        else controller.hide(WindowInsets.Type.statusBars());
+    }
+
+    static void applyContentInsets(View root,WindowInsets insets,boolean videoOnly){
+        // Fullscreen and PiP always have the same zero padding, even when bars appear.
+        Insets padding=Insets.NONE;
+        if(!videoOnly){
+            Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
+            Insets ime=insets.getInsets(WindowInsets.Type.ime());
+            padding=Insets.of(bars.left,bars.top,bars.right,Math.max(bars.bottom,ime.bottom));
+        }
+        if(root.getPaddingLeft()!=padding.left||root.getPaddingTop()!=padding.top
+                ||root.getPaddingRight()!=padding.right||root.getPaddingBottom()!=padding.bottom)
+            root.setPadding(padding.left,padding.top,padding.right,padding.bottom);
+    }
+
     private boolean enabled(){return prefs.getBoolean(KEY,true);}
-    String menuTitle(){return "横画面ステータス："+(enabled()?"ON → OFF":"OFF → ON");}
-    void toggle(){prefs.edit().putBoolean(KEY,!enabled()).apply();updateToggleLabel();update();}
+    String menuTitle(){return "横画面の通知バー："+(enabled()?"ON → OFF":"OFF → ON");}
+    void applySystemBars(boolean fullscreen){applyBars(activity.getWindow().getInsetsController(),fullscreen,enabled());}
+    void toggle(){
+        prefs.edit().putBoolean(KEY,!enabled()).apply();updateToggleLabel();
+        // A portrait menu change only saves the future fullscreen preference.
+        // A fullscreen button changes OS bar visibility, never playback or presentation mode.
+        if(active)applySystemBars(true);
+        update();
+    }
     private void updateToggleLabel(){
         toggle.setText(enabled()?"隠す":"表示");
-        toggle.setContentDescription(enabled()?"ステータス表示を隠す":"ステータスを表示する");
+        String description=enabled()?"通知バーを隠す":"通知バーを表示する";
+        toggle.setContentDescription(description);toggle.setTooltipText(description);
     }
     void setActive(boolean value){active=value;update();}
     void clearVideo(){setVideoBounds(0,0,0,1);}
@@ -65,10 +93,9 @@ final class FullscreenStatus {
         }
         viewportWidth=width;viewportHeight=height;videoLeft=left;videoRight=right;update();
     }
-    String diagnostics(){return "fullscreen status="+lastResult+" enabled="+enabled();}
-    void update(){
-        WindowInsets insets=root.getRootWindowInsets();
-        // The video-only column must actually occupy the whole root before drawing.
+    String diagnostics(){return "fullscreen native status="+lastResult+" enabled="+enabled();}
+    void update(){update(root.getRootWindowInsets());}
+    void update(WindowInsets insets){
         if(!active){hide();return;}
         int width=web.getWidth(),height=web.getHeight();
         if(insets==null||width<=0||height<=0||width!=root.getWidth()||height!=root.getHeight()
@@ -76,62 +103,34 @@ final class FullscreenStatus {
                 ||root.getPaddingRight()!=0||root.getPaddingBottom()!=0){
             lastResult="waiting for full native layout "+width+"x"+height+"/"+root.getWidth()+"x"+root.getHeight();hide();return;
         }
+        String bar="barVisible="+insets.isVisible(WindowInsets.Type.statusBars())+" ";
         if(viewportWidth<=0||viewportHeight<=0){
-            lastResult="no geometry from controller";hide();return;
+            lastResult=bar+"no geometry from controller";hide();return;
         }
         if(Math.abs((viewportWidth/viewportHeight)/(width/(double)height)-1)>.05){
-            lastResult="viewport/native aspect mismatch";hide();return;
+            lastResult=bar+"viewport/native aspect mismatch";hide();return;
         }
         int leftMargin=(int)Math.floor(videoLeft*width),rightMargin=(int)Math.floor((1-videoRight)*width);
-        Insets safe=insets.getInsetsIgnoringVisibility(WindowInsets.Type.displayCutout());
-        FullscreenSideLayout.Plan plan=FullscreenSideLayout.planGutters(width,height,leftMargin,rightMargin,
-                safe.left,safe.top,safe.right,safe.bottom,ui.dp(48),ui.dp(80),ui.dp(96),ui.dp(48),ui.dp(4));
-        lastResult="gutters="+leftMargin+"/"+rightMargin+" cutout="+safe.left+"/"+safe.right
-                +" status="+(plan.status!=null)+" toggle="+(plan.toggle!=null);
-        boolean wasVisible=status.getVisibility()==View.VISIBLE;
-        place(toggle,plan.toggle);
-        place(status,enabled()?plan.status:null);
-        boolean visible=status.getVisibility()==View.VISIBLE;
-        if(!visible)root.removeCallbacks(tick);
-        else if(!wasVisible){refresh();root.removeCallbacks(tick);root.postDelayed(tick,5000);}
+        Insets safe=insets.getInsetsIgnoringVisibility(WindowInsets.Type.displayCutout()|WindowInsets.Type.statusBars());
+        FullscreenSideLayout.Slot slot=FullscreenSideLayout.toggleSlot(width,height,leftMargin,rightMargin,
+                safe.left,safe.top,safe.right,safe.bottom,ui.dp(48),ui.dp(80),ui.dp(48),ui.dp(4));
+        lastResult=bar+"gutters="+leftMargin+"/"+rightMargin+" safe="+safe.left+"/"+safe.right+" toggle="+(slot!=null);
+        place(slot);
     }
-    private void hide(){
-        status.setVisibility(View.GONE);toggle.setVisibility(View.GONE);root.removeCallbacks(tick);
-    }
+    private void hide(){toggle.setVisibility(View.GONE);}
     @SuppressLint("RtlHardcoded") // The slots use physical display coordinates.
-    private void place(View view,FullscreenSideLayout.Slot slot){
-        if(slot==null){view.setVisibility(View.GONE);return;}
-        FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)view.getLayoutParams();
+    private void place(FullscreenSideLayout.Slot slot){
+        if(slot==null){hide();return;}
+        FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)toggle.getLayoutParams();
         if(lp.width!=slot.width||lp.height!=slot.height||lp.leftMargin!=slot.x||lp.topMargin!=slot.y){
             lp=new FrameLayout.LayoutParams(slot.width,slot.height,Gravity.TOP|Gravity.LEFT);
-            lp.leftMargin=slot.x;lp.topMargin=slot.y;view.setLayoutParams(lp);
+            lp.leftMargin=slot.x;lp.topMargin=slot.y;toggle.setLayoutParams(lp);
         }
-        view.setVisibility(View.VISIBLE);
+        toggle.setVisibility(View.VISIBLE);
     }
     boolean toggleHit(float x,float y){
         if(toggle.getVisibility()!=View.VISIBLE)return false;
         int[] position=new int[2];toggle.getLocationInWindow(position);
         return x>=position[0]&&x<position[0]+toggle.getWidth()&&y>=position[1]&&y<position[1]+toggle.getHeight();
-    }
-    private void refresh(){
-        String time=DateFormat.getTimeFormat(activity).format(new Date());
-        BatteryManager battery=activity.getSystemService(BatteryManager.class);
-        int level=battery==null?-1:battery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
-        String charge=level>=0&&level<=100?level+"%":"—";
-        String network=networkLabel();
-        status.setText(time+"\n"+charge+"\n"+network);
-        status.setContentDescription("時刻 "+time+"、電池残量 "+charge+"、通信 "+network);
-    }
-    private String networkLabel(){
-        ConnectivityManager manager=activity.getSystemService(ConnectivityManager.class);
-        if(manager==null)return "不明";
-        Network network=manager.getActiveNetwork();
-        NetworkCapabilities caps=network==null?null:manager.getNetworkCapabilities(network);
-        if(caps==null)return "未接続";
-        if(caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN))return "VPN";
-        if(caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI))return "Wi-Fi";
-        if(caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR))return "モバイル";
-        if(caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))return "有線";
-        return "接続中";
     }
 }
